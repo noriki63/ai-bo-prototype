@@ -1,0 +1,554 @@
+.requirements-phase-container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.phase-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.iteration-info {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.iteration-count {
+  font-weight: 500;
+  color: #2c3e50;
+  background: #f8f9fa;
+  padding: 5px 10px;
+  border-radius: 4px;
+}
+
+.consensus-meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.consensus-label {
+  font-size: 0.9rem;
+  color: #505a68;
+}
+
+.consensus-bar-container {
+  width: 100px;
+  height: 10px;
+  background-color: #e9ecef;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.consensus-bar {
+  height: 100%;
+  background-color: #20c997;
+  transition: width 0.5s ease;
+}
+
+.consensus-value {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.consensus-reached {
+  font-size: 0.85rem;
+  background-color: #d4edda;
+  color: #155724;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-left: 10px;
+}
+
+.settings-button {
+  padding: 6px 12px;
+  font-size: 0.9rem;
+}
+
+/* 専門家AIセクション */
+.expert-analysis-section {
+  margin-bottom: 20px;
+}
+
+.experts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.expert-card {
+  display: flex;
+  align-items: center;
+  padding: 15px;
+  border-radius: 5px;
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  transition: all 0.3s ease;
+}
+
+.expert-card.completed {
+  background-color: #d4edda;
+  border-color: #c3e6cb;
+}
+
+.expert-card.processing {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    background-color: #f8f9fa;
+  }
+  50% {
+    background-color: #e2e6ea;
+  }
+  100% {
+    background-color: #f8f9fa;
+  }
+}
+
+.expert-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #3498db;
+  color: white;
+  border-radius: 50%;
+  margin-right: 15px;
+}
+
+.expert-info {
+  flex: 1;
+}
+
+.expert-info h4 {
+  margin: 0 0 5px 0;
+  font-size: 1rem;
+}
+
+.expert-status {
+  font-size: 0.85rem;
+}
+
+.expert-status .processing {
+  color: #6c757d;
+}
+
+.expert-status .completed {
+  color: #28a745;
+}
+
+/* 質問セクション */
+.questions-section {
+  margin-bottom: 20px;
+}
+
+.question-group {
+  margin-bottom: 30px;
+}
+
+.question-group h4 {
+  color: #495057;
+  border-bottom: 1px solid #dee2e6;
+  padding-bottom: 5px;
+  margin-bottom: 15px;
+}
+
+.question-item {
+  background-color: #f8f9fa;
+  border-radius: 5px;
+  padding: 15px;
+  margin-bottom: 15px;
+  border-left: 4px solid #6c757d;
+}
+
+.question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.question-text {
+  flex: 1;
+}
+
+.expert-badge {
+  font-size: 0.8rem;
+  background-color: #e9ecef;
+  padding: 3px 8px;
+  border-radius: 10px;
+  color: #495057;
+}
+
+.question-context {
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin-bottom: 10px;
+  font-style: italic;
+}
+
+.answer-input {
+  margin-top: 10px;
+}
+
+.answer-display {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+}
+
+.answer-section {
+  margin-top: 10px;
+}
+
+.answer-rationale {
+  margin-top: 5px;
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+.confidence-badge {
+  margin-left: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.confidence-badge.high {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.confidence-badge.medium {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.confidence-badge.low {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.user-edited-badge {
+  margin-left: 10px;
+  background-color: #cce5ff;
+  color: #004085;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.edit-button {
+  margin-top: 10px;
+  padding: 5px 10px;
+  font-size: 0.9rem;
+}
+
+.edit-answer {
+  margin-top: 10px;
+}
+
+.edit-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.auto-answered .question-item {
+  border-left-color: #17a2b8;
+}
+
+.no-questions-message {
+  padding: 15px;
+  background-color: #e2e3e5;
+  border-radius: 5px;
+  color: #383d41;
+  font-style: italic;
+}
+
+/* 要件表示セクション */
+.requirements-section {
+  margin-bottom: 20px;
+}
+
+.requirements-list {
+  margin-bottom: 20px;
+}
+
+.requirement-item {
+  background-color: #f8f9fa;
+  border-radius: 5px;
+  padding: 15px;
+  margin-bottom: 15px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-left: 4px solid #6c757d;
+  position: relative;
+}
+
+.requirement-item:hover {
+  background-color: #e9ecef;
+}
+
+.requirement-item.approved {
+  border-left-color: #28a745;
+}
+
+.requirement-item.discussion {
+  border-left-color: #ffc107;
+}
+
+.requirement-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.requirement-id {
+  font-weight: bold;
+  margin-right: 10px;
+}
+
+.requirement-priority {
+  background-color: #e9ecef;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  margin-right: 10px;
+}
+
+.requirement-status {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.requirement-status.approved {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.requirement-status.discussion {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.requirement-description {
+  font-weight: 500;
+  margin-bottom: 5px;
+}
+
+.requirement-details {
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+.iteration-badge {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  font-size: 0.7rem;
+  background-color: #cce5ff;
+  color: #004085;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.processing-message {
+  text-align: center;
+  color: #6c757d;
+  margin-top: 15px;
+}
+
+.instructions {
+  margin: 20px 0;
+  padding: 10px;
+  background-color: #e2e3e5;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #383d41;
+}
+
+.iteration-limit-message {
+  margin-top: 15px;
+  padding: 10px;
+  background-color: #fff3cd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #856404;
+}
+
+/* 設定モーダル */
+.settings-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.settings-modal {
+  background-color: white;
+  border-radius: 5px;
+  width: 400px;
+  max-width: 90%;
+  padding: 20px;
+}
+
+.settings-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.settings-modal-header h3 {
+  margin: 0;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #6c757d;
+  padding: 0;
+  line-height: 1;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .experts-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+  
+  .question-header {
+    flex-direction: column;
+  }
+  
+  .expert-badge {
+    align-self: flex-start;
+    margin-top: 5px;
+  }
+  
+  .iteration-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+
+.input-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.input-modal {
+  background-color: white;
+  border-radius: 5px;
+  width: 600px;
+  max-width: 90%;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.input-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.input-modal-header h3 {
+  margin: 0;
+  color: #2c3e50;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #6c757d;
+  padding: 0;
+  line-height: 1;
+}
+
+.input-modal .form-group {
+  margin-bottom: 20px;
+}
+
+.input-modal label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #495057;
+}
+
+.input-modal textarea {
+  width: 100%;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 1rem;
+  font-family: inherit;
+  min-height: 120px;
+  resize: vertical;
+}
+
+.input-modal textarea:focus {
+  border-color: #3498db;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+}
+
+.form-notice {
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-left: 4px solid #6c757d;
+  margin-bottom: 20px;
+  border-radius: 4px;
+}
+
+.form-notice p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #495057;
+}
+
+.input-modal .button-group {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 768px) {
+  .input-modal {
+    width: 95%;
+    padding: 15px;
+  }
+}

@@ -1,0 +1,71 @@
+.project-creation-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.project-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.advanced-settings {
+  margin: 20px 0;
+}
+
+.toggle-advanced {
+  width: 100%;
+  text-align: left;
+  margin-bottom: 10px;
+}
+
+.advanced-options {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 5px;
+  border: 1px solid #e9ecef;
+}
+
+.checkbox-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: auto;
+  margin-right: 10px;
+  margin-bottom: 0;
+}
+
+.loading-indicator {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.loading-indicator p {
+  margin-top: 10px;
+  color: #7f8c8d;
+}
+
+@media (max-width: 600px) {
+  .checkbox-group {
+    grid-template-columns: 1fr;
+  }
+}

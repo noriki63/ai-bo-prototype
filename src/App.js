@@ -1,24 +1,38 @@
-import logo from './logo.svg';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
+
+// コンポーネントのインポート
+import Header from './components/Header';
+import Footer from './components/Footer';
+import ProjectCreation from './pages/ProjectCreation';
+import RequirementsPhase from './pages/RequirementsPhase';
+import DesignPhase from './pages/DesignPhase';
+import ImplementationPhase from './pages/ImplementationPhase';
+import Settings from './pages/Settings';
+import ExpertAISettings from './pages/ExpertAISettings';
+import { ProjectProvider } from './context/ProjectContext';
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <ProjectProvider>
+      <Router>
+        <div className="app-container">
+          <Header />
+          <main className="main-content">
+            <Routes>
+              <Route path="/" element={<ProjectCreation />} />
+              <Route path="/requirements" element={<RequirementsPhase />} />
+              <Route path="/design" element={<DesignPhase />} />
+              <Route path="/implementation" element={<ImplementationPhase />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/expert-settings" element={<ExpertAISettings />} />
+            </Routes>
+          </main>
+          <Footer />
+        </div>
+      </Router>
+    </ProjectProvider>
   );
 }
 
