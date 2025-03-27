@@ -41,11 +41,34 @@ const createWindow = () => {
   let preloadPath;
   if (isDev) {
     preloadPath = path.join(__dirname, 'preload.js');
+    logger.info(`開発環境用preloadパス: ${preloadPath}`);
   } else {
-    // 本番環境では、preload.jsはbuild内に配置される
-    preloadPath = path.join(app.getAppPath(), 'build', 'preload.js');
-    // 開発環境のpreloadをコピーする場合はこちらを使用
-    // preloadPath = path.join(app.getAppPath(), 'preload.js');
+    // Try multiple potential locations for the preload script
+    const possibleLocations = [
+      path.join(app.getAppPath(), 'build', 'preload.js'),
+      path.join(app.getAppPath(), 'preload.js'),
+      path.join(app.getAppPath(), 'public', 'preload.js'),
+      path.join(__dirname, 'preload.js')
+    ];
+    
+    // Try each location until we find the file
+    for (const location of possibleLocations) {
+      try {
+        if (fs.existsSync(location)) {
+          preloadPath = location;
+          logger.info(`本番環境用preloadパスを発見: ${preloadPath}`);
+          break;
+        }
+      } catch (err) {
+        logger.debug(`preloadチェック中: ${location} - 存在しません`);
+      }
+    }
+    
+    // If we still don't have a preload path, use the default
+    if (!preloadPath) {
+      preloadPath = path.join(__dirname, 'preload.js');
+      logger.warn(`プロダクションpreloadが見つからないため、デフォルトパスを使用: ${preloadPath}`);
+    }
   }
   
   // preloadパスのチェック

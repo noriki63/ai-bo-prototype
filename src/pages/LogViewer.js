@@ -76,6 +76,17 @@ const LogViewer = () => {
     
     console.log("===================================");
   };
+
+  const generateFallbackLog = () => {
+    // クライアント側で生成したログエントリを返す
+    const timestamp = new Date().toISOString();
+    return [
+      `[${timestamp}] [FRONTEND] [INFO] LogViewer: フォールバックログが生成されました`,
+      `[${timestamp}] [FRONTEND] [INFO] Electron環境状態: ${JSON.stringify(electronStatus.details || {})}`,
+      `[${timestamp}] [FRONTEND] [INFO] ブラウザ情報: ${navigator.userAgent}`,
+      ...directLog
+    ].join('\n');
+  };
   
   // Electron環境を詳細にチェックする関数
   const checkElectronEnvironment = () => {
@@ -219,8 +230,8 @@ const LogViewer = () => {
   // ログコンテンツの読み込み
   const loadLogs = async () => {
     if (!electronStatus.detected) {
-      setLogContent('Electron環境が検出できないため、ダイレクトログを表示します。\n\n' + directLog.join('\n'));
-      setErrorLogContent('Electron環境が検出できません。');
+      setLogContent(generateFallbackLog());
+      setErrorLogContent('Electron環境が検出できないため、エラーログは利用できません。');
       return;
     }
     

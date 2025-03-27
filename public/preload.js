@@ -55,33 +55,78 @@ try {
     // ログ機能 - 明示的にオブジェクト化して公開
     logs: {
       // ログ内容取得
-      getLogContent: (lines = 100) => {
-        console.log(`preload: getLogContent(${lines})を呼び出します`);
-        return ipcRenderer.invoke('get-log-content', lines);
+      getLogContent: async (lines = 100) => {
+        try {
+          console.log(`preload: getLogContent(${lines})を呼び出します`);
+          if (!ipcRenderer) {
+            console.error('ipcRenderer is undefined in getLogContent');
+            return 'IPC通信エラー: レンダラープロセスとメインプロセス間の接続に問題があります。';
+          }
+          return await ipcRenderer.invoke('get-log-content', lines);
+        } catch (error) {
+          console.error('getLogContent呼び出しエラー:', error);
+          return `エラー: ${error.message}`;
+        }
       },
       
       // エラーログ内容取得
-      getErrorLogContent: (lines = 100) => {
-        console.log(`preload: getErrorLogContent(${lines})を呼び出します`);
-        return ipcRenderer.invoke('get-error-log-content', lines);
+      getErrorLogContent: async (lines = 100) => {
+        try {
+          console.log(`preload: getErrorLogContent(${lines})を呼び出します`);
+          if (!ipcRenderer) {
+            console.error('ipcRenderer is undefined in getErrorLogContent');
+            return 'IPC通信エラー: レンダラープロセスとメインプロセス間の接続に問題があります。';
+          }
+          return await ipcRenderer.invoke('get-error-log-content', lines);
+        } catch (error) {
+          console.error('getErrorLogContent呼び出しエラー:', error);
+          return `エラー: ${error.message}`;
+        }
       },
       
       // ログファイル一覧取得
-      getLogFiles: () => {
-        console.log('preload: getLogFilesを呼び出します');
-        return ipcRenderer.invoke('get-log-files');
+      getLogFiles: async () => {
+        try {
+          console.log('preload: getLogFilesを呼び出します');
+          if (!ipcRenderer) {
+            console.error('ipcRenderer is undefined in getLogFiles');
+            return [];
+          }
+          return await ipcRenderer.invoke('get-log-files');
+        } catch (error) {
+          console.error('getLogFiles呼び出しエラー:', error);
+          return [];
+        }
       },
       
       // ログレベル設定
-      setLogLevel: (level) => {
-        console.log(`preload: setLogLevel(${level})を呼び出します`);
-        return ipcRenderer.invoke('set-log-level', level);
+      setLogLevel: async (level) => {
+        try {
+          console.log(`preload: setLogLevel(${level})を呼び出します`);
+          if (!ipcRenderer) {
+            console.error('ipcRenderer is undefined in setLogLevel');
+            return false;
+          }
+          return await ipcRenderer.invoke('set-log-level', level);
+        } catch (error) {
+          console.error('setLogLevel呼び出しエラー:', error);
+          return false;
+        }
       },
       
       // ログ書き込み
-      writeLog: (level, message, dataStr) => {
-        console.log(`preload: writeLog(${level}, ${message})を呼び出します`);
-        return ipcRenderer.invoke('write-log', level, message, dataStr);
+      writeLog: async (level, message, dataStr) => {
+        try {
+          console.log(`preload: writeLog(${level}, ${message})を呼び出します`);
+          if (!ipcRenderer) {
+            console.error('ipcRenderer is undefined in writeLog');
+            return false;
+          }
+          return await ipcRenderer.invoke('write-log', level, message, dataStr);
+        } catch (error) {
+          console.error('writeLog呼び出しエラー:', error);
+          return false;
+        }
       }
     }
   });
