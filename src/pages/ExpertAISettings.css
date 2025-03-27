@@ -1,358 +1,517 @@
 .expert-ai-settings-container {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 20px;
-  }
-  
-  .expert-ai-settings-container h2 {
-    color: #2c3e50;
-    margin-bottom: 30px;
-    border-bottom: 2px solid #3498db;
-    padding-bottom: 10px;
-  }
-  
-  .settings-section {
-    background-color: white;
-    border-radius: 5px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  }
-  
-  .settings-section h3 {
-    color: #2c3e50;
-    margin-top: 0;
-    margin-bottom: 20px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #e9ecef;
-  }
-  
-  .expert-count-control {
-    display: flex;
-    align-items: center;
-    margin-bottom: 20px;
-  }
-  
-  .expert-count-control label {
-    font-weight: 500;
-    margin-right: 10px;
-  }
-  
-  .expert-count-control select {
-    padding: 8px 12px;
-    border: 1px solid #ced4da;
-    border-radius: 4px;
-    background-color: white;
-    min-width: 80px;
-  }
-  
-  .experts-list {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-  }
-  
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.expert-ai-settings-container h2 {
+  color: #2c3e50;
+  margin-bottom: 30px;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 10px;
+}
+
+.settings-section {
+  background-color: white;
+  border-radius: 5px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.settings-section h3 {
+  color: #2c3e50;
+  margin-top: 0;
+  margin-bottom: 20px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.expert-count-control {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.expert-count-control label {
+  font-weight: 500;
+  margin-right: 10px;
+}
+
+.expert-count-control select {
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  background-color: white;
+  min-width: 80px;
+}
+
+.experts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.expert-card {
+  display: flex;
+  border: 1px solid #e9ecef;
+  border-radius: 5px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  transition: all 0.2s ease;
+}
+
+.expert-card:hover {
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  border-color: #d6dee5;
+}
+
+.expert-icon {
+  width: 50px;
+  height: 50px;
+  background-color: #3498db;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin-right: 15px;
+  flex-shrink: 0;
+}
+
+.expert-info {
+  flex: 1;
+}
+
+.expert-info h4 {
+  margin: 0 0 5px 0;
+  color: #2c3e50;
+  font-size: 1.1rem;
+}
+
+.expert-description {
+  color: #6c757d;
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+}
+
+.expert-model, .expert-expertise {
+  font-size: 0.85rem;
+  color: #495057;
+  margin-bottom: 5px;
+}
+
+.expert-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  margin-left: 15px;
+}
+
+.edit-button {
+  background-color: #17a2b8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+}
+
+.edit-button:hover {
+  background-color: #138496;
+}
+
+.order-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.order-button {
+  width: 30px;
+  height: 30px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.order-button:hover:not(:disabled) {
+  background-color: #5a6268;
+}
+
+.order-button:disabled {
+  background-color: #ced4da;
+  cursor: not-allowed;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.cancel-button {
+  background-color: #6c757d;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.cancel-button:hover {
+  background-color: #5a6268;
+}
+
+.save-button {
+  background-color: #3498db;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.save-button:hover {
+  background-color: #2980b9;
+}
+
+/* モーダル関連のスタイル */
+.expert-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.expert-modal {
+  background-color: white;
+  border-radius: 5px;
+  width: 700px;
+  max-width: 90%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.expert-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.expert-modal-header h3 {
+  margin: 0;
+  color: #2c3e50;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #6c757d;
+  padding: 0;
+  line-height: 1;
+}
+
+.expert-modal-content {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: calc(90vh - 140px);
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 500;
+  color: #495057;
+  margin-bottom: 8px;
+}
+
+.form-group input[type="text"],
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.form-group textarea {
+  min-height: 80px;
+}
+
+.expertise-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.priorities-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.priority-slider {
+  display: flex;
+  align-items: center;
+}
+
+.priority-slider label {
+  width: 120px;
+  margin-bottom: 0;
+}
+
+.priority-slider input[type="range"] {
+  flex: 1;
+  margin: 0 10px;
+}
+
+.priority-slider span {
+  width: 30px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.expert-modal-footer {
+  padding: 15px 20px;
+  background-color: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
   .expert-card {
-    display: flex;
-    border: 1px solid #e9ecef;
-    border-radius: 5px;
-    padding: 15px;
-    background-color: #f8f9fa;
-    transition: all 0.2s ease;
-  }
-  
-  .expert-card:hover {
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
-    border-color: #d6dee5;
+    flex-direction: column;
   }
   
   .expert-icon {
-    width: 50px;
-    height: 50px;
-    background-color: #3498db;
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    margin-right: 15px;
-    flex-shrink: 0;
-  }
-  
-  .expert-info {
-    flex: 1;
-  }
-  
-  .expert-info h4 {
-    margin: 0 0 5px 0;
-    color: #2c3e50;
-    font-size: 1.1rem;
-  }
-  
-  .expert-description {
-    color: #6c757d;
-    font-size: 0.9rem;
-    margin-bottom: 8px;
-  }
-  
-  .expert-model, .expert-expertise {
-    font-size: 0.85rem;
-    color: #495057;
-    margin-bottom: 5px;
-  }
-  
-  .expert-actions {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    margin-left: 15px;
-  }
-  
-  .edit-button {
-    background-color: #17a2b8;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 5px 10px;
-    cursor: pointer;
-    font-size: 0.9rem;
+    margin-right: 0;
     margin-bottom: 10px;
   }
   
-  .edit-button:hover {
-    background-color: #138496;
+  .expert-actions {
+    flex-direction: row;
+    margin-left: 0;
+    margin-top: 15px;
   }
   
   .order-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-  
-  .order-button {
-    width: 30px;
-    height: 30px;
-    background-color: #6c757d;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .order-button:hover:not(:disabled) {
-    background-color: #5a6268;
-  }
-  
-  .order-button:disabled {
-    background-color: #ced4da;
-    cursor: not-allowed;
-  }
-  
-  .settings-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 20px;
-  }
-  
-  .cancel-button {
-    background-color: #6c757d;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 1rem;
-  }
-  
-  .cancel-button:hover {
-    background-color: #5a6268;
-  }
-  
-  .save-button {
-    background-color: #3498db;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 1rem;
-  }
-  
-  .save-button:hover {
-    background-color: #2980b9;
-  }
-  
-  /* モーダル関連のスタイル */
-  .expert-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-  }
-  
-  .expert-modal {
-    background-color: white;
-    border-radius: 5px;
-    width: 700px;
-    max-width: 90%;
-    max-height: 90vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  
-  .expert-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 20px;
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-  }
-  
-  .expert-modal-header h3 {
-    margin: 0;
-    color: #2c3e50;
-  }
-  
-  .close-button {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: #6c757d;
-    padding: 0;
-    line-height: 1;
-  }
-  
-  .expert-modal-content {
-    padding: 20px;
-    overflow-y: auto;
-    max-height: calc(90vh - 140px);
-  }
-  
-  .form-group {
-    margin-bottom: 20px;
-  }
-  
-  .form-group label {
-    display: block;
-    font-weight: 500;
-    color: #495057;
-    margin-bottom: 8px;
-  }
-  
-  .form-group input[type="text"],
-  .form-group select,
-  .form-group textarea {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ced4da;
-    border-radius: 4px;
-    font-size: 1rem;
-  }
-  
-  .form-group textarea {
-    min-height: 80px;
+    flex-direction: row;
   }
   
   .expertise-checkboxes {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 10px;
-    margin-top: 5px;
-  }
-  
-  .checkbox-label {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-  }
-  
-  .checkbox-label input[type="checkbox"] {
-    margin-right: 8px;
-  }
-  
-  .priorities-sliders {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
+    grid-template-columns: 1fr;
   }
   
   .priority-slider {
-    display: flex;
-    align-items: center;
+    flex-wrap: wrap;
   }
   
   .priority-slider label {
-    width: 120px;
-    margin-bottom: 0;
+    width: 100%;
+    margin-bottom: 5px;
+  }
+}
+
+/* プロバイダー設定モーダル用のスタイル */
+.provider-modal-overlay {
+position: fixed;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background-color: rgba(0, 0, 0, 0.5);
+display: flex;
+justify-content: center;
+align-items: center;
+z-index: 1100; /* 専門家モーダルより上に表示 */
+overflow-y: auto;
+}
+
+.provider-modal {
+background-color: white;
+border-radius: 5px;
+width: 700px;
+max-width: 90%;
+max-height: 90vh;
+display: flex;
+flex-direction: column;
+overflow: hidden;
+}
+
+.provider-modal-header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 15px 20px;
+background-color: #f8f9fa;
+border-bottom: 1px solid #dee2e6;
+}
+
+.provider-modal-header h3 {
+margin: 0;
+color: #2c3e50;
+}
+
+.provider-modal-content {
+padding: 20px;
+overflow-y: auto;
+max-height: calc(90vh - 140px);
+}
+
+.provider-modal-footer {
+padding: 15px 20px;
+background-color: #f8f9fa;
+border-top: 1px solid #dee2e6;
+display: flex;
+justify-content: flex-end;
+gap: 10px;
+}
+
+/* API設定ボタン */
+.provider-settings-button {
+background-color: #17a2b8;
+color: white;
+border: none;
+border-radius: 4px;
+padding: 5px 10px;
+font-size: 0.9rem;
+cursor: pointer;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+
+.provider-settings-button:hover {
+background-color: #138496;
+}
+
+.expert-modal-tabs {
+  display: flex;
+  border-bottom: 1px solid #dee2e6;
+  margin-bottom: 20px;
+  background-color: #f8f9fa;
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  padding: 15px 20px;
+  cursor: pointer;
+  font-size: 1rem;
+  color: #495057;
+  position: relative;
+  transition: color 0.2s;
+}
+
+.tab-button:hover {
+  color: #3498db;
+}
+
+.tab-button.active {
+  color: #3498db;
+  font-weight: 500;
+}
+
+.tab-button.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background-color: #3498db;
+}
+
+/* モーダルコンテンツ調整 */
+.expert-modal-content {
+  padding: 0 20px 20px 20px;
+  overflow-y: auto;
+  max-height: calc(90vh - 180px);
+}
+
+.expert-modal {
+  width: 800px;
+  max-width: 90%;
+}
+
+/* AISettings コンポーネント内のスタイル調整（モーダル内表示用） */
+.expert-modal-content .ai-settings-container {
+  padding: 0;
+  margin: 0;
+}
+
+.expert-modal-content .settings-section {
+  box-shadow: none;
+  padding: 0;
+  margin-bottom: 10px;
+}
+
+.expert-modal-content .settings-header {
+  margin-bottom: 10px;
+}
+
+.expert-modal-content .settings-header h3 {
+  font-size: 1.1rem;
+}
+
+/* モバイル対応調整 */
+@media (max-width: 768px) {
+  .expert-modal-tabs {
+    flex-wrap: wrap;
   }
   
-  .priority-slider input[type="range"] {
+  .tab-button {
+    padding: 10px 15px;
+    font-size: 0.9rem;
     flex: 1;
-    margin: 0 10px;
-  }
-  
-  .priority-slider span {
-    width: 30px;
     text-align: center;
-    font-weight: bold;
   }
   
-  .expert-modal-footer {
-    padding: 15px 20px;
-    background-color: #f8f9fa;
-    border-top: 1px solid #dee2e6;
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
+  .expert-modal {
+    width: 95%;
   }
-  
-  /* レスポンシブ対応 */
-  @media (max-width: 768px) {
-    .expert-card {
-      flex-direction: column;
-    }
-    
-    .expert-icon {
-      margin-right: 0;
-      margin-bottom: 10px;
-    }
-    
-    .expert-actions {
-      flex-direction: row;
-      margin-left: 0;
-      margin-top: 15px;
-    }
-    
-    .order-buttons {
-      flex-direction: row;
-    }
-    
-    .expertise-checkboxes {
-      grid-template-columns: 1fr;
-    }
-    
-    .priority-slider {
-      flex-wrap: wrap;
-    }
-    
-    .priority-slider label {
-      width: 100%;
-      margin-bottom: 5px;
-    }
-  }
+}

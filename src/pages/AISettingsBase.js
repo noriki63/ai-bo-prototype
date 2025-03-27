@@ -19,6 +19,9 @@ import './Settings.css';
  * @param {Function} props.onNavigate - 画面遷移用のコールバック
  * @param {boolean} props.showSystemInfo - システム情報を表示するかどうか
  * @param {Function} props.onOpenExpertSettings - 専門家AI設定を開くボタンクリック時のコールバック
+ * @param {Object} props.expertModeOptions - 専門家AI設定モード用のオプション
+ * @param {string} props.expertModeOptions.expertId - 専門家AIのID
+ * @param {string} props.expertModeOptions.expertName - 専門家AIの名前
  */
 const AISettingsBase = ({ 
   mode = 'summary',
@@ -28,7 +31,8 @@ const AISettingsBase = ({
   onCancel,
   onNavigate,
   showSystemInfo = true,
-  onOpenExpertSettings
+  onOpenExpertSettings,
+  expertModeOptions = null
 }) => {
   const fileInputRef = useRef(null);
   
@@ -57,10 +61,10 @@ const AISettingsBase = ({
     }
     
     // システム情報の取得（Electronの場合のみ）
-    if (showSystemInfo) {
+    if (showSystemInfo && mode !== 'expert') {
       getSystemInfo();
     }
-  }, [initialSettings, showSystemInfo]);
+  }, [initialSettings, showSystemInfo, mode]);
   
   // 設定の読み込み
   const loadSettings = async () => {
@@ -324,19 +328,30 @@ const AISettingsBase = ({
     setSaveMessage({ type: '', message: '' });
     
     try {
-      if (isElectron() && window.electronAPI) {
-        // Electron環境での保存
-        await window.electronAPI.saveSettings(settings);
+      // 専門家AIモードとそれ以外でデータ構造が異なる
+      if (mode === 'expert' && expertModeOptions) {
+        // 専門家AI用の設定保存ロジック
+        if (onSaveComplete) {
+          // 親コンポーネントに制御を委譲
+          onSaveComplete(settings, expertModeOptions);
+          setSaveMessage({ type: 'success', message: 'API設定を保存しました！' });
+        }
       } else {
-        // ブラウザ環境での保存（ローカルストレージ）
-        localStorage.setItem('aiBoSettings', JSON.stringify(settings));
-      }
-      
-      setSaveMessage({ type: 'success', message: '設定を保存しました！' });
-      
-      // 保存完了コールバックの呼び出し
-      if (onSaveComplete) {
-        onSaveComplete(settings);
+        // 通常の設定保存ロジック
+        if (isElectron() && window.electronAPI) {
+          // Electron環境での保存
+          await window.electronAPI.saveSettings(settings);
+        } else {
+          // ブラウザ環境での保存（ローカルストレージ）
+          localStorage.setItem('aiBoSettings', JSON.stringify(settings));
+        }
+        
+        setSaveMessage({ type: 'success', message: '設定を保存しました！' });
+        
+        // 保存完了コールバックの呼び出し
+        if (onSaveComplete) {
+          onSaveComplete(settings);
+        }
       }
     } catch (error) {
       setSaveMessage({ type: 'error', message: `設定の保存に失敗しました: ${error.message}` });
@@ -361,62 +376,108 @@ const AISettingsBase = ({
     }
   };
   
-  return (
-    <div className="settings-container">
-      <h2>{mode === 'expert' ? '専門家AI設定' : 'AI API設定'}</h2>
-      
-      <div className="settings-section">
-        <div className="settings-header">
-          <h3>AI API設定</h3>
-        </div>
-        
-        {/* プロバイダー選択部分 */}
+  // 専門家AIモード用のコンテンツをレンダリング
+  const renderExpertModeContent = () => {
+    return (
+      <div className="expert-ai-provider-settings">
+        {/* スタイル調整された内容をレンダリング */}
         <AIProviderSelector
           value={settings?.aiProvider || 'openai'}
           onChange={(value) => handleSettingsChange({ ...settings, aiProvider: value })}
           testConnection={testConnection}
           isTesting={isTesting}
           testResult={testResult}
-          isExpertMode={mode === 'expert'}
-          onOpenExpertSettings={onOpenExpertSettings}
+          isExpertMode={true}
         />
         
-        {/* 共通のAI設定コンポーネント */}
         <AISettings 
           settings={settings}
           onChange={handleSettingsChange}
-          isExpertMode={mode === 'expert'}
+          isExpertMode={true}
           fileInputRef={fileInputRef}
           handleFileChange={handleFileChange}
-          testConnection={null} // 上部のAIProviderSelectorでテストボタンを表示するため
+          testConnection={null}
           isTesting={isTesting}
           testResult={testResult}
         />
       </div>
-      
-      {/* 追加UI（呼び出し元から渡される） */}
-      {renderExtraUI && renderExtraUI(settings, handleSettingsChange)}
-      
-      {/* システム情報（Electronの場合のみ） */}
-      {showSystemInfo && systemInfo && (
+    );
+  };
+  
+  // 通常モード用のコンテンツをレンダリング
+  const renderNormalModeContent = () => {
+    return (
+      <>
         <div className="settings-section">
-          <h3>システム情報</h3>
-          <div className="system-info">
-            <div className="info-item">
-              <span className="info-label">プラットフォーム:</span>
-              <span className="info-value">{systemInfo.osInfo.type} {systemInfo.osInfo.version}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">アーキテクチャ:</span>
-              <span className="info-value">{systemInfo.arch}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">メモリ:</span>
-              <span className="info-value">{systemInfo.memoryInfo.total}</span>
+          <div className="settings-header">
+            <h3>AI API設定</h3>
+          </div>
+          
+          {/* プロバイダー選択部分 */}
+          <AIProviderSelector
+            value={settings?.aiProvider || 'openai'}
+            onChange={(value) => handleSettingsChange({ ...settings, aiProvider: value })}
+            testConnection={testConnection}
+            isTesting={isTesting}
+            testResult={testResult}
+            isExpertMode={false}
+            onOpenExpertSettings={onOpenExpertSettings}
+          />
+          
+          {/* 共通のAI設定コンポーネント */}
+          <AISettings 
+            settings={settings}
+            onChange={handleSettingsChange}
+            isExpertMode={false}
+            fileInputRef={fileInputRef}
+            handleFileChange={handleFileChange}
+            testConnection={null} // 上部のAIProviderSelectorでテストボタンを表示するため
+            isTesting={isTesting}
+            testResult={testResult}
+          />
+        </div>
+        
+        {/* 追加UI（呼び出し元から渡される） */}
+        {renderExtraUI && renderExtraUI(settings, handleSettingsChange)}
+        
+        {/* システム情報（Electronの場合のみ） */}
+        {showSystemInfo && systemInfo && (
+          <div className="settings-section">
+            <h3>システム情報</h3>
+            <div className="system-info">
+              <div className="info-item">
+                <span className="info-label">プラットフォーム:</span>
+                <span className="info-value">{systemInfo.osInfo.type} {systemInfo.osInfo.version}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">アーキテクチャ:</span>
+                <span className="info-value">{systemInfo.arch}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">メモリ:</span>
+                <span className="info-value">{systemInfo.memoryInfo.total}</span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </>
+    );
+  };
+  
+  // モードに応じたコンテンツをレンダリング
+  const renderContent = () => {
+    if (mode === 'expert') {
+      return renderExpertModeContent();
+    }
+    return renderNormalModeContent();
+  };
+  
+  return (
+    <div className={`settings-container ${mode === 'expert' ? 'expert-mode' : ''}`}>
+      <h2>{mode === 'expert' ? 'API プロバイダー設定' : 'AI API設定'}</h2>
+      
+      {/* モードに応じたコンテンツ */}
+      {renderContent()}
       
       {/* 保存・キャンセルボタン */}
       <div className="settings-actions">
@@ -431,7 +492,12 @@ const AISettingsBase = ({
           onClick={saveSettings}
           disabled={isSaving}
         >
-          {isSaving ? '保存中...' : '設定を保存'}
+          {isSaving 
+            ? '保存中...' 
+            : mode === 'expert' 
+              ? 'API設定を保存' 
+              : '設定を保存'
+          }
         </button>
       </div>
       

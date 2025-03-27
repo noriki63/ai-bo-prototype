@@ -48,11 +48,17 @@ const Settings = () => {
     navigate('/expert-settings');
   };
   
+  // キャンセル時の処理
+  const handleCancel = () => {
+    navigate('/');
+  };
+  
   return (
     <AISettingsBase 
       mode="summary"
       initialSettings={initialSettings}
       onSaveComplete={handleSaveComplete}
+      onCancel={handleCancel}
       onNavigate={handleNavigate}
       showSystemInfo={true}
       onOpenExpertSettings={navigateToExpertSettings}
