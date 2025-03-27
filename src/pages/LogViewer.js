@@ -12,38 +12,103 @@ const LogViewer = () => {
   const [refreshInterval, setRefreshInterval] = useState(null);
   const [lines, setLines] = useState(100);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // Electron APIが使えるかどうか
-  const hasElectronAPI = window && window.electronAPI && window.electronAPI.logs;
+  const [electronStatus, setElectronStatus] = useState({
+    detected: false,
+    message: 'Electron環境を確認中...',
+    error: null
+  });
   
   // ログの直接読み込み (ipcRendererを使わず直接表示)
   const [directLog, setDirectLog] = useState([]);
   
+  // Electron環境の検出と詳細レポート
+  useEffect(() => {
+    checkElectronEnvironment();
+  }, []);
+  
+  // Electron環境を詳細にチェックする関数
+  const checkElectronEnvironment = () => {
+    try {
+      console.log("Electron環境の詳細チェックを開始");
+      
+      const checks = {
+        windowExists: !!window,
+        electronAPIExists: !!(window && window.electronAPI),
+        logsAPIExists: !!(window && window.electronAPI && window.electronAPI.logs),
+        getLogContentExists: !!(window && window.electronAPI && window.electronAPI.logs && 
+                               typeof window.electronAPI.logs.getLogContent === 'function'),
+        writeLogExists: !!(window && window.electronAPI && window.electronAPI.logs && 
+                          typeof window.electronAPI.logs.writeLog === 'function'),
+        processExists: !!(window && window.process),
+        processTypeExists: !!(window && window.process && window.process.type)
+      };
+      
+      console.log("Electron環境チェック結果:", checks);
+      
+      // ロガー経由でログを記録
+      logger.info('Electron環境チェック結果', checks);
+      
+      // Electron環境の状態を更新
+      const isElectronEnv = checks.logsAPIExists && checks.getLogContentExists;
+      setElectronStatus({
+        detected: isElectronEnv,
+        message: isElectronEnv 
+          ? 'Electron環境を正常に検出しました' 
+          : 'Electron環境が検出できません。クライアント側ログのみ表示します。',
+        error: null,
+        details: checks
+      });
+      
+      // DirectLogに情報を追加
+      const detailsText = Object.entries(checks)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join('\n');
+        
+      setDirectLog(prev => [
+        ...prev,
+        '[INFO] ログビューア起動',
+        `[INFO] Electron API状態: ${isElectronEnv ? '利用可能' : '利用不可'}`,
+        '[INFO] Electron環境チェック詳細:',
+        detailsText
+      ]);
+      
+      // Electron環境が利用可能ならすぐにログを読み込み
+      if (isElectronEnv) {
+        loadLogs();
+        loadLogFiles();
+      }
+    } catch (error) {
+      console.error("Electron環境チェック中にエラー:", error);
+      setElectronStatus({
+        detected: false,
+        message: 'Electron環境チェック中にエラーが発生しました',
+        error: error.message
+      });
+    }
+  };
+  
   // コンポーネントマウント時に実行
   useEffect(() => {
-    // 直接ログを初期化
-    setDirectLog([
-      '[INFO] ログビューア起動',
-      '[INFO] Electron API状態: ' + (hasElectronAPI ? '利用可能' : '利用不可'),
-      '[INFO] ログレベル: INFO'
-    ]);
-    
     // テストログを生成
     addDirectLog('INFO', 'ログビューアでテストログを生成');
     
     // 通常のログ読み込みも試行
-    loadLogs();
+    if (electronStatus.detected) {
+      loadLogs();
+    }
     
     // 定期更新設定
     if (refreshInterval) {
       const intervalId = setInterval(() => {
-        loadLogs();
+        if (electronStatus.detected) {
+          loadLogs();
+        }
         // 定期的なダミーログも追加
         addDirectLog('INFO', '定期更新チェック');
       }, refreshInterval * 1000);
       return () => clearInterval(intervalId);
     }
-  }, [activeTab, refreshInterval, lines]);
+  }, [activeTab, refreshInterval, lines, electronStatus.detected]);
   
   // 直接ログを追加する関数
   const addDirectLog = (level, message, data = null) => {
@@ -65,14 +130,14 @@ const LogViewer = () => {
   
   // ログ一覧の取得
   useEffect(() => {
-    if (hasElectronAPI) {
+    if (electronStatus.detected) {
       loadLogFiles();
     }
-  }, []);
+  }, [electronStatus.detected]);
   
   // ログコンテンツの読み込み
   const loadLogs = async () => {
-    if (!hasElectronAPI) {
+    if (!electronStatus.detected) {
       setLogContent('Electron環境が検出できないため、ダイレクトログを表示します。\n\n' + directLog.join('\n'));
       setErrorLogContent('Electron環境が検出できません。');
       return;
@@ -85,16 +150,31 @@ const LogViewer = () => {
     try {
       if (activeTab === 'normal') {
         console.log(`通常ログを${lines}行取得します`);
-        const content = await window.electronAPI.logs.getLogContent(lines);
-        console.log("取得したログ内容の長さ:", content?.length || 0);
-        setLogContent(content || 'ログは空です。');
+        try {
+          console.log("window.electronAPI.logs:", window.electronAPI.logs);
+          console.log("window.electronAPI.logs.getLogContent:", window.electronAPI.logs.getLogContent);
+          const content = await window.electronAPI.logs.getLogContent(lines);
+          console.log("取得したログ内容の長さ:", content?.length || 0);
+          setLogContent(content || 'ログは空です。');
+          addDirectLog('INFO', 'ログ読み込み成功');
+        } catch (error) {
+          console.error("getLogContent呼び出しエラー:", error);
+          setLogContent(`ログ取得中にエラーが発生しました: ${error.message}`);
+          addDirectLog('ERROR', 'ログ読み込み失敗', { error: error.message });
+        }
       } else if (activeTab === 'error') {
         console.log(`エラーログを${lines}行取得します`);
-        const content = await window.electronAPI.logs.getErrorLogContent(lines);
-        console.log("取得したエラーログ内容の長さ:", content?.length || 0);
-        setErrorLogContent(content || 'エラーログは空です。');
+        try {
+          const content = await window.electronAPI.logs.getErrorLogContent(lines);
+          console.log("取得したエラーログ内容の長さ:", content?.length || 0);
+          setErrorLogContent(content || 'エラーログは空です。');
+          addDirectLog('INFO', 'エラーログ読み込み成功');
+        } catch (error) {
+          console.error("getErrorLogContent呼び出しエラー:", error);
+          setErrorLogContent(`エラーログ取得中にエラーが発生しました: ${error.message}`);
+          addDirectLog('ERROR', 'エラーログ読み込み失敗', { error: error.message });
+        }
       }
-      addDirectLog('INFO', 'ログ読み込み成功');
     } catch (error) {
       console.error('ログ読み込みエラー詳細:', error);
       addDirectLog('ERROR', 'ログ読み込み失敗', { error: error.message });
@@ -110,6 +190,10 @@ const LogViewer = () => {
   
   // ログファイル一覧の読み込み
   const loadLogFiles = async () => {
+    if (!electronStatus.detected) {
+      return;
+    }
+    
     try {
       addDirectLog('DEBUG', 'ログファイル一覧取得開始');
       const files = await window.electronAPI.logs.getLogFiles();
@@ -144,9 +228,15 @@ const LogViewer = () => {
   const handleRefresh = () => {
     addDirectLog('INFO', '手動更新実行');
     loadLogs();
-    if (hasElectronAPI) {
+    if (electronStatus.detected) {
       loadLogFiles();
     }
+  };
+  
+  // 環境状態再チェック
+  const recheckEnvironment = () => {
+    addDirectLog('INFO', 'Electron環境を再チェックします');
+    checkElectronEnvironment();
   };
   
   // テストログ生成
@@ -160,7 +250,7 @@ const LogViewer = () => {
     // すぐにログを再読み込み
     setTimeout(() => {
       loadLogs();
-      if (hasElectronAPI) {
+      if (electronStatus.detected) {
         loadLogFiles();
       }
     }, 500);
@@ -183,6 +273,17 @@ const LogViewer = () => {
   return (
     <div className="log-viewer-container">
       <h2>ログビューア</h2>
+      
+      {/* Electron環境状態表示 */}
+      <div className="electron-status">
+        <div className={`status-indicator ${electronStatus.detected ? 'success' : 'error'}`}>
+          {electronStatus.message}
+          {electronStatus.error && <div className="error-details">{electronStatus.error}</div>}
+        </div>
+        <button onClick={recheckEnvironment} className="recheck-button">
+          環境再チェック
+        </button>
+      </div>
       
       <div className="log-controls">
         <div className="control-group">
@@ -242,7 +343,7 @@ const LogViewer = () => {
           </button>
           <button 
             className={activeTab === 'files' ? 'active' : ''} 
-            onClick={() => { setActiveTab('files'); if (hasElectronAPI) loadLogFiles(); }}
+            onClick={() => { setActiveTab('files'); if (electronStatus.detected) loadLogFiles(); }}
           >
             ログファイル
           </button>
@@ -264,7 +365,7 @@ const LogViewer = () => {
         
         {activeTab === 'files' && (
           <div className="log-files">
-            {hasElectronAPI ? (
+            {electronStatus.detected ? (
               <table>
                 <thead>
                   <tr>

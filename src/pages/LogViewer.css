@@ -4,6 +4,52 @@
     padding: 20px;
   }
   
+  /* Electron環境状態表示 */
+  .electron-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 10px 15px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    border-left: 4px solid #6c757d;
+  }
+  
+  .status-indicator {
+    font-weight: 500;
+  }
+  
+  .status-indicator.success {
+    border-left-color: #28a745;
+    color: #155724;
+  }
+  
+  .status-indicator.error {
+    border-left-color: #dc3545;
+    color: #721c24;
+  }
+  
+  .error-details {
+    font-size: 0.9rem;
+    color: #721c24;
+    margin-top: 5px;
+  }
+  
+  .recheck-button {
+    background-color: #17a2b8;
+    color: white;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  
+  .recheck-button:hover {
+    background-color: #138496;
+  }
+  
   .log-controls {
     margin-bottom: 20px;
     background-color: #f8f9fa;

@@ -99,29 +99,62 @@ app.on('activate', () => {
 // ログ関連IPC
 ipcMain.handle('get-log-content', async (event, lines) => {
   logger.debug(`ログ内容取得リクエスト (${lines}行)`);
-  return await logger.getLogContent(lines);
+  try {
+    const content = await logger.getLogContent(lines);
+    logger.debug(`ログ内容取得成功: ${content.length}バイト`);
+    return content;
+  } catch (error) {
+    logger.error('ログ内容取得エラー', { error: error.message });
+    return `エラー: ${error.message}`;
+  }
 });
 
 ipcMain.handle('get-error-log-content', async (event, lines) => {
   logger.debug(`エラーログ内容取得リクエスト (${lines}行)`);
-  return await logger.getErrorLogContent(lines);
+  try {
+    const content = await logger.getErrorLogContent(lines);
+    logger.debug(`エラーログ内容取得成功: ${content.length}バイト`);
+    return content;
+  } catch (error) {
+    logger.error('エラーログ内容取得エラー', { error: error.message });
+    return `エラー: ${error.message}`;
+  }
 });
 
 ipcMain.handle('get-log-files', async () => {
   logger.debug('ログファイル一覧取得リクエスト');
-  return await logger.getLogFiles();
+  try {
+    const files = await logger.getLogFiles();
+    logger.debug(`ログファイル一覧取得成功: ${files.length}件`);
+    return files;
+  } catch (error) {
+    logger.error('ログファイル一覧取得エラー', { error: error.message });
+    return [];
+  }
 });
 
 ipcMain.handle('set-log-level', (event, level) => {
   logger.info(`ログレベル変更: ${level}`);
-  logger.setLogLevel(level);
-  return true;
+  try {
+    logger.setLogLevel(level);
+    return true;
+  } catch (error) {
+    logger.error('ログレベル設定エラー', { error: error.message });
+    return false;
+  }
 });
 
 // フロントエンドからのログ書き込みハンドラ
 ipcMain.handle('write-log', (event, level, message, dataStr) => {
   try {
-    const data = dataStr ? JSON.parse(dataStr) : null;
+    let data = null;
+    if (dataStr) {
+      try {
+        data = JSON.parse(dataStr);
+      } catch (jsonError) {
+        console.error('ログデータのJSON解析エラー:', jsonError);
+      }
+    }
     
     // ログレベルに応じて適切なロガーメソッドを呼び出す
     switch (level) {

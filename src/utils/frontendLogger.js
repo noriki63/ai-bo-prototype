@@ -33,18 +33,28 @@ class FrontendLogger {
         // Developer Toolsにデバッグ情報を出力
         console.log('Electron検出テスト:');
         console.log('- window.electronAPI:', window.electronAPI !== undefined);
+        console.log('- window.electronAPI.logs:', window.electronAPI && window.electronAPI.logs !== undefined);
         console.log('- window.process:', window && window.process !== undefined);
         console.log('- window.process.type:', window && window.process && window.process.type);
         
+        // IPCハンドラが実際に存在するか確認を追加
+        if (window.electronAPI && window.electronAPI.logs) {
+            console.log('- electronAPI.logs.getLogContent:', typeof window.electronAPI.logs.getLogContent === 'function');
+            console.log('- electronAPI.logs.writeLog:', typeof window.electronAPI.logs.writeLog === 'function');
+        }
+        
         // より堅牢なチェック
-        return (
-        // 標準的なElectron検出
-        (window && window.process && window.process.type) || 
-        // electronAPIの存在確認（preload.jsで定義）
-        (window && window.electronAPI !== undefined) ||
-        // location.protocolでfile:プロトコルを確認（Electron buildの場合）
-        (window && window.location && window.location.protocol === 'file:')
+        const isElectronEnv = !!(
+            // electronAPIの存在確認（preload.jsで定義）- 最も信頼性の高い方法
+            (window && window.electronAPI && window.electronAPI.logs) ||
+            // 標準的なElectron検出
+            (window && window.process && window.process.type) || 
+            // location.protocolでfile:プロトコルを確認（Electron buildの場合）
+            (window && window.location && window.location.protocol === 'file:')
         );
+        
+        console.log('Electron環境検出結果:', isElectronEnv);
+        return isElectronEnv;
     }
     
     /**
@@ -68,6 +78,11 @@ class FrontendLogger {
       
       try {
         console.log(`ログコンテンツの取得を試みます (${lines}行)`);
+        if (!window.electronAPI || !window.electronAPI.logs || !window.electronAPI.logs.getLogContent) {
+          console.error('electronAPI.logs.getLogContent 関数が見つかりません');
+          return 'ログ取得関数が利用できません。アプリを再起動してください。';
+        }
+        
         const content = await window.electronAPI.logs.getLogContent(lines);
         console.log(`ログコンテンツ取得成功: ${content?.length || 0}バイト`);
         return content;
@@ -90,6 +105,11 @@ class FrontendLogger {
       
       try {
         console.log(`エラーログコンテンツの取得を試みます (${lines}行)`);
+        if (!window.electronAPI || !window.electronAPI.logs || !window.electronAPI.logs.getErrorLogContent) {
+          console.error('electronAPI.logs.getErrorLogContent 関数が見つかりません');
+          return 'エラーログ取得関数が利用できません。アプリを再起動してください。';
+        }
+        
         const content = await window.electronAPI.logs.getErrorLogContent(lines);
         console.log(`エラーログコンテンツ取得成功: ${content?.length || 0}バイト`);
         return content;
@@ -111,6 +131,11 @@ class FrontendLogger {
       
       try {
         console.log('ログファイル一覧の取得を試みます');
+        if (!window.electronAPI || !window.electronAPI.logs || !window.electronAPI.logs.getLogFiles) {
+          console.error('electronAPI.logs.getLogFiles 関数が見つかりません');
+          return [];
+        }
+        
         const files = await window.electronAPI.logs.getLogFiles();
         console.log(`ログファイル一覧取得成功: ${files.length}ファイル`);
         return files;
@@ -129,10 +154,12 @@ class FrontendLogger {
         console.log(`ログレベルを設定: ${level}`);
         this.currentLevel = this.levels[level];
         
-        if (this.isElectronEnv()) {
+        if (this.isElectronEnv() && window.electronAPI && window.electronAPI.logs && window.electronAPI.logs.setLogLevel) {
           window.electronAPI.logs.setLogLevel(level).catch(err => {
             console.error('ログレベル設定エラー:', err);
           });
+        } else {
+          console.warn('Electron環境でないためログレベルをメインプロセスに反映できません');
         }
       } else {
         console.warn(`無効なログレベル: ${level}`);
@@ -175,7 +202,7 @@ class FrontendLogger {
       }
       
       // Electron環境の場合、IPCを使ってメインプロセスにログを送信
-      if (this.isElectronEnv()) {
+      if (this.isElectronEnv() && window.electronAPI && window.electronAPI.logs && window.electronAPI.logs.writeLog) {
         try {
           // データをJSON文字列に変換（nullの場合は空オブジェクト）
           const dataStr = data ? JSON.stringify(data) : '{}';

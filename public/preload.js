@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
+console.log('preload.js が読み込まれました');
+
 // APIをウィンドウオブジェクトに公開
 contextBridge.exposeInMainWorld('electronAPI', {
   // ファイルシステム操作
@@ -34,13 +36,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
   testLocalConnection: () =>
     ipcRenderer.invoke('test-local-connection'),
     
-  // ログ機能
+  // ログ機能 - 明示的にオブジェクト化して公開
   logs: {
-    getLogContent: (lines = 100) => ipcRenderer.invoke('get-log-content', lines),
-    getErrorLogContent: (lines = 100) => ipcRenderer.invoke('get-error-log-content', lines),
-    getLogFiles: () => ipcRenderer.invoke('get-log-files'),
-    setLogLevel: (level) => ipcRenderer.invoke('set-log-level', level),
-    // ログ書き込み用の関数
-    writeLog: (level, message, dataStr) => ipcRenderer.invoke('write-log', level, message, dataStr)
+    // ログ内容取得
+    getLogContent: (lines = 100) => {
+      console.log(`preload: getLogContent(${lines})を呼び出します`);
+      return ipcRenderer.invoke('get-log-content', lines);
+    },
+    
+    // エラーログ内容取得
+    getErrorLogContent: (lines = 100) => {
+      console.log(`preload: getErrorLogContent(${lines})を呼び出します`);
+      return ipcRenderer.invoke('get-error-log-content', lines);
+    },
+    
+    // ログファイル一覧取得
+    getLogFiles: () => {
+      console.log('preload: getLogFilesを呼び出します');
+      return ipcRenderer.invoke('get-log-files');
+    },
+    
+    // ログレベル設定
+    setLogLevel: (level) => {
+      console.log(`preload: setLogLevel(${level})を呼び出します`);
+      return ipcRenderer.invoke('set-log-level', level);
+    },
+    
+    // ログ書き込み
+    writeLog: (level, message, dataStr) => {
+      console.log(`preload: writeLog(${level}, ${message})を呼び出します`);
+      return ipcRenderer.invoke('write-log', level, message, dataStr);
+    }
   }
 });
+
+// 初期化確認のためにコンソールに情報を出力
+console.log('preload.js: electronAPI オブジェクトが公開されました');
+console.log('preload.js: logs APIが利用可能か:', typeof ipcRenderer.invoke === 'function');
