@@ -11,6 +11,7 @@ import DesignPhase from './pages/DesignPhase';
 import ImplementationPhase from './pages/ImplementationPhase';
 import Settings from './pages/Settings';
 import ExpertAISettings from './pages/ExpertAISettings';
+import LogViewer from './pages/LogViewer';
 import { ProjectProvider } from './context/ProjectContext';
 
 function App() {
@@ -27,6 +28,7 @@ function App() {
               <Route path="/implementation" element={<ImplementationPhase />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/expert-settings" element={<ExpertAISettings />} />
+              <Route path="/logs" element={<LogViewer />} />
             </Routes>
           </main>
           <Footer />

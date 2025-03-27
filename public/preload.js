@@ -1,3 +1,4 @@
+// public/preload.js
 const { contextBridge, ipcRenderer } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -32,5 +33,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   testOpenRouterConnection: (apiKey) =>
     ipcRenderer.invoke('test-openrouter-connection', apiKey),
   testLocalConnection: () =>
-    ipcRenderer.invoke('test-local-connection')
+    ipcRenderer.invoke('test-local-connection'),
+    
+  // ログ機能
+  logs: {
+    getLogContent: (lines = 100) => ipcRenderer.invoke('get-log-content', lines),
+    getErrorLogContent: (lines = 100) => ipcRenderer.invoke('get-error-log-content', lines),
+    getLogFiles: () => ipcRenderer.invoke('get-log-files'),
+    setLogLevel: (level) => ipcRenderer.invoke('set-log-level', level),
+    // 追加: ログ書き込み用の関数
+    writeLog: (level, message, dataStr) => ipcRenderer.invoke('write-log', level, message, dataStr)
+  }
 });

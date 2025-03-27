@@ -5,6 +5,7 @@ const fs = require('fs').promises;
 const { exec } = require('child_process');
 const https = require('https');
 const http = require('http');
+const logger = require('../src/utils/logger');
 
 // メインウィンドウへの参照を保持
 let mainWindow;
@@ -13,20 +14,27 @@ let mainWindow;
 const userDataPath = app.getPath('userData');
 const settingsPath = path.join(userDataPath, 'settings.json');
 
+// アプリケーション開始ログ
+logger.info('AI棒アプリケーション起動開始');
+
 // 実行コマンドの結果を返すユーティリティ関数
 const execPromise = (command) => {
+  logger.debug(`コマンド実行: ${command}`);
   return new Promise((resolve, reject) => {
     exec(command, (error, stdout, stderr) => {
       if (error) {
+        logger.error(`コマンド実行エラー: ${command}`, { error: error.message, stderr });
         reject(error);
         return;
       }
+      logger.debug(`コマンド実行成功: ${command}`);
       resolve(stdout);
     });
   });
 };
 
 const createWindow = () => {
+  logger.info('メインウィンドウ作成開始');
   // メインウィンドウを作成
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -42,6 +50,7 @@ const createWindow = () => {
 
   // 開発環境ではDevToolsを開く
   if (isDev) {
+    logger.debug('開発モード: DevTools表示');
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
@@ -50,26 +59,36 @@ const createWindow = () => {
     ? 'http://localhost:3000' 
     : `file://${path.join(__dirname, '../build/index.html')}`;
   
+  logger.info(`アプリケーションURL: ${startUrl}`);
   mainWindow.loadURL(startUrl);
 
   // ウィンドウが閉じられたときの処理
   mainWindow.on('closed', () => {
+    logger.info('メインウィンドウが閉じられました');
     mainWindow = null;
   });
+  
+  logger.info('メインウィンドウ作成完了');
 };
 
 // アプリケーションが準備完了したらメインウィンドウを作成
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  logger.info('Electronアプリケーション準備完了');
+  createWindow();
+});
 
 // 全てのウィンドウが閉じられたとき
 app.on('window-all-closed', () => {
+  logger.info('全ウィンドウ終了');
   // macOSでは、ユーザーがCmd + Qで明示的に終了するまでアプリケーションを終了しない
   if (process.platform !== 'darwin') {
+    logger.info('アプリケーション終了');
     app.quit();
   }
 });
 
 app.on('activate', () => {
+  logger.info('アプリケーションアクティブ化');
   // macOSでは、ドックアイコンがクリックされてほかにウィンドウがないときに
   // アプリケーションでウィンドウを再作成するのが一般的
   if (BrowserWindow.getAllWindows().length === 0) {
@@ -77,38 +96,68 @@ app.on('activate', () => {
   }
 });
 
+// ログ関連IPC
+ipcMain.handle('get-log-content', async (event, lines) => {
+  logger.debug(`ログ内容取得リクエスト (${lines}行)`);
+  return await logger.getLogContent(lines);
+});
+
+ipcMain.handle('get-error-log-content', async (event, lines) => {
+  logger.debug(`エラーログ内容取得リクエスト (${lines}行)`);
+  return await logger.getErrorLogContent(lines);
+});
+
+ipcMain.handle('get-log-files', async () => {
+  logger.debug('ログファイル一覧取得リクエスト');
+  return await logger.getLogFiles();
+});
+
+ipcMain.handle('set-log-level', (event, level) => {
+  logger.info(`ログレベル変更: ${level}`);
+  logger.setLogLevel(level);
+  return true;
+});
+
 // IPCメインプロセスハンドラ
 
 // ファイルシステム操作
 ipcMain.handle('fs-read-file', async (event, filePath, options) => {
   try {
+    logger.debug(`ファイル読み込み: ${filePath}`);
     return await fs.readFile(filePath, options);
   } catch (error) {
+    logger.error(`ファイル読み込みエラー: ${filePath}`, { error: error.message });
     throw new Error(`ファイル読み込みエラー: ${error.message}`);
   }
 });
 
 ipcMain.handle('fs-write-file', async (event, filePath, data) => {
   try {
+    logger.debug(`ファイル書き込み: ${filePath}`);
     await fs.writeFile(filePath, data);
     return true;
   } catch (error) {
+    logger.error(`ファイル書き込みエラー: ${filePath}`, { error: error.message });
     throw new Error(`ファイル書き込みエラー: ${error.message}`);
   }
 });
 
 // 環境構築関連のコマンド実行
 ipcMain.handle('run-command', async (event, command) => {
+  logger.info(`コマンド実行: ${command}`);
   try {
     const result = await execPromise(command);
+    logger.debug('コマンド実行成功');
     return { success: true, output: result };
   } catch (error) {
+    logger.error('コマンド実行失敗', { error: error.message });
     return { success: false, error: error.message };
   }
 });
 
 // システム情報の取得
 ipcMain.handle('get-system-info', async () => {
+  logger.info('システム情報取得');
   const platform = process.platform;
   const arch = process.arch;
   
@@ -139,7 +188,9 @@ ipcMain.handle('get-system-info', async () => {
       });
       osInfo = { type: 'Linux', version: linuxDistro };
     }
+    logger.debug('OS情報取得成功', osInfo);
   } catch (error) {
+    logger.error('OS情報取得エラー', { error: error.message });
     osInfo = { type: platform, version: 'Unknown', error: error.message };
   }
   
@@ -148,7 +199,9 @@ ipcMain.handle('get-system-info', async () => {
   try {
     const totalMemory = process.getSystemMemoryInfo().total / (1024 * 1024); // MB単位
     memoryInfo = { total: `${Math.round(totalMemory * 100) / 100} MB` };
+    logger.debug('メモリ情報取得成功', memoryInfo);
   } catch (error) {
+    logger.error('メモリ情報取得エラー', { error: error.message });
     memoryInfo = { error: error.message };
   }
   
@@ -159,358 +212,3 @@ ipcMain.handle('get-system-info', async () => {
     memoryInfo
   };
 });
-
-// 設定の保存
-ipcMain.handle('save-settings', async (event, settings) => {
-  try {
-    // ディレクトリが存在することを確認
-    try {
-      await fs.access(userDataPath);
-    } catch (error) {
-      // ディレクトリが存在しない場合は作成
-      await fs.mkdir(userDataPath, { recursive: true });
-    }
-    
-    // 設定を保存
-    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-    return true;
-  } catch (error) {
-    console.error('設定保存エラー:', error);
-    throw new Error(`設定の保存に失敗しました: ${error.message}`);
-  }
-});
-
-// 設定の読み込み
-ipcMain.handle('get-settings', async () => {
-  try {
-    // ファイルが存在するか確認
-    try {
-      await fs.access(settingsPath);
-    } catch (error) {
-      // ファイルが存在しない場合はデフォルト設定を返す
-      return {
-        aiProvider: 'openai',
-        apiKey: '',
-        apiEndpoint: '',
-        model: 'gpt-4',
-        temperature: 0.7,
-        maxTokens: 4000,
-        customModels: []
-      };
-    }
-    
-    // 設定を読み込み
-    const data = await fs.readFile(settingsPath, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('設定読み込みエラー:', error);
-    // エラーが発生した場合もデフォルト設定を返す
-    return {
-      aiProvider: 'openai',
-      apiKey: '',
-      apiEndpoint: '',
-      model: 'gpt-4',
-      temperature: 0.7,
-      maxTokens: 4000,
-      customModels: []
-    };
-  }
-});
-
-// OpenAI API接続テスト
-ipcMain.handle('test-openai-connection', async (event, apiKey, apiEndpoint) => {
-  return new Promise((resolve) => {
-    try {
-      const endpoint = apiEndpoint || 'https://api.openai.com';
-      const url = new URL('/v1/models', endpoint);
-      
-      const options = {
-        hostname: url.hostname,
-        port: url.port || (url.protocol === 'https:' ? 443 : 80),
-        path: url.pathname,
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      };
-      
-      const httpModule = url.protocol === 'https:' ? https : http;
-      
-      const req = httpModule.request(options, (res) => {
-        let data = '';
-        
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
-        
-        res.on('end', () => {
-          if (res.statusCode === 200) {
-            resolve({ success: true, message: '接続成功！OpenAI APIと正常に通信できました。' });
-          } else {
-            try {
-              const errorResponse = JSON.parse(data);
-              resolve({ 
-                success: false, 
-                message: `接続エラー (${res.statusCode}): ${errorResponse.error?.message || 'Unknown error'}` 
-              });
-            } catch (e) {
-              resolve({ 
-                success: false, 
-                message: `接続エラー (${res.statusCode}): ${data || 'Unknown error'}` 
-              });
-            }
-          }
-        });
-      });
-      
-      req.on('error', (error) => {
-        resolve({ success: false, message: `ネットワークエラー: ${error.message}` });
-      });
-      
-      req.end();
-    } catch (error) {
-      resolve({ success: false, message: `テストエラー: ${error.message}` });
-    }
-  });
-});
-
-// Anthropic API接続テスト
-ipcMain.handle('test-anthropic-connection', async (event, apiKey, apiEndpoint) => {
-  return new Promise((resolve) => {
-    try {
-      const endpoint = apiEndpoint || 'https://api.anthropic.com';
-      const url = new URL('/v1/models', endpoint);
-      
-      const options = {
-        hostname: url.hostname,
-        port: url.port || (url.protocol === 'https:' ? 443 : 80),
-        path: url.pathname,
-        method: 'GET',
-        headers: {
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'Content-Type': 'application/json'
-        }
-      };
-      
-      const httpModule = url.protocol === 'https:' ? https : http;
-      
-      const req = httpModule.request(options, (res) => {
-        let data = '';
-        
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
-        
-        res.on('end', () => {
-          if (res.statusCode === 200) {
-            resolve({ success: true, message: '接続成功！Anthropic APIと正常に通信できました。' });
-          } else {
-            try {
-              const errorResponse = JSON.parse(data);
-              resolve({ 
-                success: false, 
-                message: `接続エラー (${res.statusCode}): ${errorResponse.error?.message || 'Unknown error'}` 
-              });
-            } catch (e) {
-              resolve({ 
-                success: false, 
-                message: `接続エラー (${res.statusCode}): ${data || 'Unknown error'}` 
-              });
-            }
-          }
-        });
-      });
-      
-      req.on('error', (error) => {
-        resolve({ success: false, message: `ネットワークエラー: ${error.message}` });
-      });
-      
-      req.end();
-    } catch (error) {
-      resolve({ success: false, message: `テストエラー: ${error.message}` });
-    }
-  });
-});
-
-// Azure OpenAI API接続テスト
-ipcMain.handle('test-azure-connection', async (event, apiKey, endpoint, deploymentName) => {
-    return new Promise((resolve) => {
-      try {
-        if (!apiKey || !endpoint || !deploymentName) {
-          return resolve({ 
-            success: false, 
-            message: 'Azure OpenAI API情報が不完全です。APIキー、エンドポイント、デプロイメント名をすべて入力してください。' 
-          });
-        }
-        
-        const url = new URL(`/openai/deployments/${deploymentName}/chat/completions?api-version=2023-05-15`, endpoint);
-        
-        const options = {
-          hostname: url.hostname,
-          port: url.port || (url.protocol === 'https:' ? 443 : 80),
-          path: url.pathname + url.search,
-          method: 'POST',
-          headers: {
-            'api-key': apiKey,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            messages: [{ role: 'user', content: 'Hello' }],
-            max_tokens: 5
-          })
-        };
-        
-        const httpModule = url.protocol === 'https:' ? https : http;
-        
-        const req = httpModule.request(options, (res) => {
-          let data = '';
-          
-          res.on('data', (chunk) => {
-            data += chunk;
-          });
-          
-          res.on('end', () => {
-            if (res.statusCode === 200) {
-              resolve({ success: true, message: '接続成功！Azure OpenAI APIと正常に通信できました。' });
-            } else {
-              try {
-                const errorResponse = JSON.parse(data);
-                resolve({ 
-                  success: false, 
-                  message: `接続エラー (${res.statusCode}): ${errorResponse.error?.message || 'Unknown error'}` 
-                });
-              } catch (e) {
-                resolve({ 
-                  success: false, 
-                  message: `接続エラー (${res.statusCode}): ${data || 'Unknown error'}` 
-                });
-              }
-            }
-          });
-        });
-        
-        req.on('error', (error) => {
-          resolve({ success: false, message: `ネットワークエラー: ${error.message}` });
-        });
-        
-        req.end();
-      } catch (error) {
-        resolve({ success: false, message: `テストエラー: ${error.message}` });
-      }
-    });
-  });
-  
-  // Google Vertex AI API接続テスト
-  ipcMain.handle('test-google-connection', async (event, projectId, location, keyFilePath) => {
-    if (!projectId || !location) {
-      return { 
-        success: false, 
-        message: 'Google Cloud情報が不完全です。プロジェクトIDとロケーションを入力してください。' 
-      };
-    }
-    
-    if (!keyFilePath) {
-      return { 
-        success: false, 
-        message: 'サービスアカウントキーファイルが選択されていません。' 
-      };
-    }
-    
-    try {
-      // キーファイルの存在確認
-      await fs.access(keyFilePath);
-      
-      // キーファイルの内容検証（シンプルなチェック）
-      const keyFileContent = await fs.readFile(keyFilePath, 'utf8');
-      const keyData = JSON.parse(keyFileContent);
-      
-      if (!keyData.private_key || !keyData.client_email) {
-        return { 
-          success: false, 
-          message: '無効なサービスアカウントキーファイルです。private_keyとclient_emailが必要です。' 
-        };
-      }
-      
-      // 実際のAPI接続テストは複雑なため、ここではファイル検証のみ行う
-      return { success: true, message: 'Google Vertex AI 用のサービスアカウントキーファイルが有効です。' };
-    } catch (error) {
-      return { 
-        success: false, 
-        message: `キーファイル検証エラー: ${error.message}` 
-      };
-    }
-  });
-  
-  // OpenRouter API接続テスト
-  ipcMain.handle('test-openrouter-connection', async (event, apiKey) => {
-    return new Promise((resolve) => {
-      try {
-        if (!apiKey) {
-          return resolve({ 
-            success: false, 
-            message: 'OpenRouter APIキーが入力されていません。' 
-          });
-        }
-        
-        const options = {
-          hostname: 'openrouter.ai',
-          port: 443,
-          path: '/api/v1/models',
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'HTTP-Referer': 'ai-bo-prototype', // OpenRouterでは必要
-            'Content-Type': 'application/json'
-          }
-        };
-        
-        const req = https.request(options, (res) => {
-          let data = '';
-          
-          res.on('data', (chunk) => {
-            data += chunk;
-          });
-          
-          res.on('end', () => {
-            if (res.statusCode === 200) {
-              resolve({ success: true, message: '接続成功！OpenRouter APIと正常に通信できました。' });
-            } else {
-              try {
-                const errorResponse = JSON.parse(data);
-                resolve({ 
-                  success: false, 
-                  message: `接続エラー (${res.statusCode}): ${errorResponse.error?.message || 'Unknown error'}` 
-                });
-              } catch (e) {
-                resolve({ 
-                  success: false, 
-                  message: `接続エラー (${res.statusCode}): ${data || 'Unknown error'}` 
-                });
-              }
-            }
-          });
-        });
-        
-        req.on('error', (error) => {
-          resolve({ success: false, message: `ネットワークエラー: ${error.message}` });
-        });
-        
-        req.end();
-      } catch (error) {
-        resolve({ success: false, message: `テストエラー: ${error.message}` });
-      }
-    });
-  });
-  
-  // ローカルモデル接続テスト
-  ipcMain.handle('test-local-connection', async (event) => {
-    // Electron環境でローカルモデルを検出
-    try {
-      // ここではシンプルな確認のみ
-      return { success: true, message: 'ローカル実行環境を検出しました。' };
-    } catch (error) {
-      return { success: false, message: `ローカル環境検出エラー: ${error.message}` };
-    }
-  });

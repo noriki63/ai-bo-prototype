@@ -1,11 +1,25 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProjectContext from '../context/ProjectContext';
+import logger from '../utils/frontendLogger'; // ロガーをインポート
 import './DesignPhase.css';
 
 const DesignPhase = () => {
   const navigate = useNavigate();
   const { project, setProject } = useContext(ProjectContext);
+  
+  // コンポーネントマウント時にログ出力
+  useEffect(() => {
+    logger.info('設計フェーズ開始', { 
+      projectName: project.name,
+      requirementsCount: project.requirements?.length || 0
+    });
+    
+    // コンポーネントのアンマウント時にログ
+    return () => {
+      logger.debug('設計フェーズコンポーネントのアンマウント');
+    };
+  }, [project]);
   
   // isElectron関数の追加
   const isElectron = () => {
@@ -39,6 +53,7 @@ const DesignPhase = () => {
   useEffect(() => {
     // 専門家AI設定の読み込み
     const loadExpertSettings = async () => {
+      logger.debug('設計フェーズ: 専門家AI設定の読み込み開始');
       let expertSettings = null;
       
       if (isElectron() && window.electronAPI) {
@@ -46,9 +61,10 @@ const DesignPhase = () => {
           const settings = await window.electronAPI.getSettings();
           if (settings && settings.expertSettings) {
             expertSettings = settings.expertSettings;
+            logger.debug('Electron環境から専門家AI設定を読み込み成功');
           }
         } catch (error) {
-          console.error('専門家AI設定の読み込みエラー:', error);
+          logger.error('専門家AI設定の読み込みエラー (Electron)', error);
         }
       } else {
         const savedSettings = localStorage.getItem('aiBoSettings');
@@ -57,9 +73,10 @@ const DesignPhase = () => {
             const settings = JSON.parse(savedSettings);
             if (settings.expertSettings) {
               expertSettings = settings.expertSettings;
+              logger.debug('ローカルストレージから専門家AI設定を読み込み成功');
             }
           } catch (error) {
-            console.error('専門家AI設定の解析エラー:', error);
+            logger.error('専門家AI設定の解析エラー', error);
           }
         }
       }
@@ -80,24 +97,36 @@ const DesignPhase = () => {
           }));
           
           setExperts(customExperts);
+          logger.info('設計フェーズ: カスタム専門家AI設定を適用', { 
+            expertsCount: customExperts.length 
+          });
         }
+      } else {
+        // デフォルト専門家AIの初期化
+        logger.info('設計フェーズ: デフォルト専門家AI設定を使用', {
+          expertCount: experts.length
+        });
       }
-      
-      // 初期の設計プロセスシミュレーション実行
-      simulateDesignProcess();
     };
     
-    loadExpertSettings();
+    loadExpertSettings().then(() => {
+      logger.info('設計プロセスシミュレーション開始');
+      // 専門家AIの分析シミュレーション
+      simulateDesignProcess();
+    });
   }, []);
   
   // 専門家AIの一致度計算（シミュレーション）
   const calculateConsensus = () => {
     // イテレーションごとに上昇するよう簡易シミュレーション
-    return Math.min(0.4 + (iterationCount * 0.2), 1.0);
+    const consensus = Math.min(0.4 + (iterationCount * 0.2), 1.0);
+    logger.debug(`設計専門家AI一致度計算: ${Math.round(consensus * 100)}%`);
+    return consensus;
   };
   
   // 設計プロセスのシミュレーション
   const simulateDesignProcess = () => {
+    logger.debug('設計プロセスシミュレーション実行');
     // experts配列が空の場合はデフォルト専門家を設定
     if (!experts || experts.length === 0) {
       setExperts([
@@ -113,6 +142,7 @@ const DesignPhase = () => {
     // 専門家AIの状態を順次更新
     experts.forEach((expert, index) => {
       setTimeout(() => {
+        logger.debug(`設計専門家AI完了: ${expert.name}`);
         setExperts(prev => {
           const updated = [...prev];
           const expertIndex = updated.findIndex(e => e.id === expert.id);
@@ -125,10 +155,12 @@ const DesignPhase = () => {
         // 全ての専門家の分析が完了したら次のステップへ
         if (index === experts.length - 1) {
           setTimeout(() => {
+            logger.info('全設計専門家AI分析完了、設計統合処理開始');
             setProcessingStep('integration');
             
             // まとめAIの処理シミュレーション
             setTimeout(() => {
+              logger.info('設計統合処理完了');
               const initialDesign = [
                 {
                   id: 'arch-1',
@@ -194,6 +226,12 @@ const DesignPhase = () => {
   
   // 再設計（繰り返し処理）
   const runNextIteration = (keepDesign = true, additionalInput = '') => {
+    logger.info('設計フェーズ: 次のイテレーション開始', { 
+      iterationCount, 
+      keepDesign,
+      hasAdditionalInput: !!additionalInput 
+    });
+    
     // 前回の設計を保存
     if (keepDesign) {
       setPreviousDesign(designComponents);
@@ -231,7 +269,7 @@ const DesignPhase = () => {
               
               if (iterationCount === 0 && additionalInput) {
                 // 追加入力に基づく設計を表示するためのログ（デバッグ用）
-                console.log('追加入力に基づく新たな設計生成:', additionalInput);
+                logger.debug('追加入力に基づく新たな設計生成:', additionalInput);
                 
                 // シミュレーション: 追加入力に基づく設計の生成
                 if (keepDesign && previousDesign.length > 0) {
@@ -317,6 +355,12 @@ const DesignPhase = () => {
   
   // 設計を承認
   const handleApproveDesign = () => {
+    logger.info('設計を承認して実装フェーズへ進む', {
+      designComponentCount: designComponents.length,
+      iterationCount,
+      consensusScore: Math.round(consensusScore * 100)
+    });
+    
     // 設計コンポーネントをすべて承認済みに更新
     const approvedDesigns = designComponents.map(component => ({
       ...component,
@@ -345,6 +389,7 @@ const DesignPhase = () => {
   
   // 設計コンポーネントのステータスを切り替え
   const toggleComponentStatus = (componentId) => {
+    logger.debug(`設計コンポーネントステータス切り替え: ${componentId}`);
     setDesignComponents(prev => 
       prev.map(component => 
         component.id === componentId 
@@ -359,12 +404,17 @@ const DesignPhase = () => {
   
   // 設計を追加する処理
   const handleAddDesign = () => {
+    logger.info('設計追加モーダルを表示');
     // 追加入力モーダルを表示
     setShowAddInputModal(true);
   };
   
   // 追加入力を保存して処理を開始
   const handleSubmitAdditionalDesign = () => {
+    logger.info('追加設計を提出して処理を再開', {
+      additionalDesignInputLength: additionalDesignInput.length
+    });
+    
     // モーダルを閉じる
     setShowAddInputModal(false);
     
@@ -383,12 +433,14 @@ const DesignPhase = () => {
   
   // 設定モーダルの表示/非表示
   const toggleSettingsModal = () => {
+    logger.debug(`設計設定モーダルの表示切り替え: ${!showSettingsModal ? '表示' : '非表示'}`);
     setShowSettingsModal(!showSettingsModal);
   };
   
   // 設定を保存
   const saveSettings = (e) => {
     e.preventDefault();
+    logger.info('設計設定を保存', { maxIterations });
     setShowSettingsModal(false);
   };
   

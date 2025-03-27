@@ -1,20 +1,44 @@
 import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ProjectContext from '../context/ProjectContext';
+import logger from '../utils/frontendLogger'; // ロガーをインポート
 import './ImplementationPhase.css';
 
 const ImplementationPhase = () => {
-  const { project } = useContext(ProjectContext);
+  const navigate = useNavigate();
+  const { project, setProject } = useContext(ProjectContext);
   const [currentStep, setCurrentStep] = useState('task-division');
   const [progress, setProgress] = useState(0);
   const [tasks, setTasks] = useState([]);
   const [environmentSetup, setEnvironmentSetup] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
   
+  // コンポーネントマウント時にログ出力
+  useEffect(() => {
+    logger.info('実装フェーズ開始', { 
+      projectName: project.name,
+      designComponentsCount: project.design?.components?.length || 0,
+      architecture: project.design?.architecture || 'undefined',
+      database: project.design?.database || 'undefined'
+    });
+    
+    // コンポーネントのアンマウント時にログ
+    return () => {
+      logger.debug('実装フェーズコンポーネントのアンマウント');
+    };
+  }, []);
+  
   // タスク生成のシミュレーション
   useEffect(() => {
     const simulateTasks = () => {
+      logger.info('タスク分割プロセス開始', {
+        projectName: project.name,
+        currentStep
+      });
+      
       // タスク分割
       setTimeout(() => {
+        logger.debug('タスク生成中...');
         const generatedTasks = [
           {
             id: 'task-1',
@@ -146,12 +170,14 @@ export const getClient = async () => {
           },
         ];
         
+        logger.debug(`${generatedTasks.length}個のタスクを生成`);
         setTasks(generatedTasks);
         setProgress(20);
         setCurrentStep('implementation');
         
         // 環境構築セットアップ
         setTimeout(() => {
+          logger.info('環境構築開始');
           const setupSteps = [
             { id: 'env-1', name: 'Node.js環境', status: 'completed' },
             { id: 'env-2', name: 'PostgreSQLデータベース', status: 'completed' },
@@ -159,6 +185,7 @@ export const getClient = async () => {
             { id: 'env-4', name: 'CI/CDパイプライン', status: 'queued' },
           ];
           
+          logger.debug('環境構築ステップ定義', { stepCount: setupSteps.length });
           setEnvironmentSetup(setupSteps);
           setProgress(40);
           
@@ -166,24 +193,29 @@ export const getClient = async () => {
           let currentProgress = 40;
           const progressInterval = setInterval(() => {
             currentProgress += 10;
+            logger.debug(`実装進捗更新: ${currentProgress}%`);
             setProgress(currentProgress);
             
             // タスクの進行状況を更新
             if (currentProgress === 60) {
+              logger.info('データベース接続タスク完了');
               setTasks(prev => {
                 const updated = [...prev];
                 const task = updated.find(t => t.id === 'task-2');
                 if (task) {
+                  logger.debug(`タスク状態更新: ${task.id}`, { status: 'completed', progress: 100 });
                   task.progress = 100;
                   task.status = 'completed';
                 }
                 return updated;
               });
               
+              logger.info('Docker環境セットアップ完了');
               setEnvironmentSetup(prev => {
                 const updated = [...prev];
                 const env = updated.find(e => e.id === 'env-3');
                 if (env) {
+                  logger.debug(`環境構築状態更新: ${env.id}`, { status: 'completed' });
                   env.status = 'completed';
                 }
                 return updated;
@@ -191,10 +223,12 @@ export const getClient = async () => {
             }
             
             if (currentProgress === 80) {
+              logger.info('UI実装タスク完了');
               setTasks(prev => {
                 const updated = [...prev];
                 const task = updated.find(t => t.id === 'task-3');
                 if (task) {
+                  logger.debug(`タスク状態更新: ${task.id}`, { status: 'completed', progress: 100 });
                   task.progress = 100;
                   task.status = 'completed';
                   task.code = `// UI実装 - ログインコンポーネント
@@ -269,27 +303,35 @@ export const LoginForm = () => {
             }
             
             if (currentProgress >= 100) {
+              logger.info('実装フェーズ完了', { progress: 100 });
               clearInterval(progressInterval);
               setProgress(100);
               setCurrentStep('completed');
               
+              // 残りのタスクを完了状態に更新
               setTasks(prev => {
                 return prev.map(task => {
                   if (task.status === 'queued') {
+                    logger.debug(`タスク自動完了: ${task.id}`);
                     return { ...task, status: 'completed', progress: 100 };
                   }
                   return task;
                 });
               });
               
+              // 残りの環境構築ステップを完了状態に更新
               setEnvironmentSetup(prev => {
                 return prev.map(env => {
                   if (env.status === 'queued') {
+                    logger.debug(`環境構築ステップ自動完了: ${env.id}`);
                     return { ...env, status: 'completed' };
                   }
                   return env;
                 });
               });
+              
+              // プロジェクトの状態を更新
+              updateProjectImplementationState();
             }
           }, 2000);
           
@@ -301,13 +343,42 @@ export const LoginForm = () => {
     simulateTasks();
   }, []);
   
+  // プロジェクトの実装状態を更新
+  const updateProjectImplementationState = () => {
+    logger.info('プロジェクト実装状態を更新');
+    
+    // 実装状態をプロジェクトに保存
+    setProject(prevProject => ({
+      ...prevProject,
+      implementation: {
+        tasks,
+        environment: environmentSetup,
+        progress: 100,
+        completedAt: new Date().toISOString(),
+        status: 'completed'
+      },
+      currentPhase: 'test' // 次のフェーズへ
+    }));
+  };
+  
+  // タスク詳細を表示
   const handleTaskClick = (taskId) => {
+    logger.debug(`タスク詳細表示: ${taskId}`);
     const task = tasks.find(t => t.id === taskId);
     setSelectedTask(task);
   };
   
+  // タスク詳細モーダルを閉じる
   const closeTaskDetail = () => {
+    logger.debug('タスク詳細を閉じる');
     setSelectedTask(null);
+  };
+  
+  // テストフェーズへの移行
+  const handleProceedToTest = () => {
+    logger.info('テストフェーズへ移行');
+    updateProjectImplementationState();
+    navigate('/test');
   };
   
   return (
@@ -406,7 +477,7 @@ export const LoginForm = () => {
           <h3>実装完了</h3>
           <p>すべてのタスクが完了し、環境構築が完了しました。次のフェーズに進むことができます。</p>
           <div className="button-group">
-            <button className="success">テストフェーズへ進む</button>
+            <button onClick={handleProceedToTest} className="success">テストフェーズへ進む</button>
           </div>
         </div>
       )}

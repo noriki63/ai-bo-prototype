@@ -1,6 +1,7 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProjectContext from '../context/ProjectContext';
+import logger from '../utils/frontendLogger'; // ロガーをインポート
 import './ProjectCreation.css';
 
 const ProjectCreation = () => {
@@ -9,20 +10,34 @@ const ProjectCreation = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   
+  // コンポーネントマウント時にログを記録
+  useEffect(() => {
+    logger.info('プロジェクト作成画面を表示', { 
+      hasExistingProject: !!project.name,
+      currentPhase: project.currentPhase || 'none'
+    });
+    
+    // 終了時のクリーンアップ
+    return () => {
+      logger.debug('プロジェクト作成画面を終了');
+    };
+  }, []);
+  
   // フォーム入力の状態
   const [formData, setFormData] = useState({
     name: project.name || '',
     specification: project.specification || '',
-    techStack: false,
-    architecture: false,
-    database: false,
-    security: false,
-    performance: false
+    techStack: project.advancedSettings?.techStack || false,
+    architecture: project.advancedSettings?.architecture || false,
+    database: project.advancedSettings?.database || false,
+    security: project.advancedSettings?.security || false,
+    performance: project.advancedSettings?.performance || false
   });
 
   // 入力変更ハンドラ
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    logger.debug(`フォーム入力変更: ${name}`, { type, value: type === 'checkbox' ? checked : value });
     setFormData({
       ...formData,
       [name]: type === 'checkbox' ? checked : value
@@ -31,16 +46,29 @@ const ProjectCreation = () => {
 
   // 詳細設定の表示切り替え
   const toggleAdvanced = () => {
+    logger.debug(`詳細設定の表示切り替え: ${!showAdvanced ? '表示' : '非表示'}`);
     setShowAdvanced(!showAdvanced);
   };
 
   // プロジェクト作成ハンドラ
   const handleCreateProject = (e) => {
     e.preventDefault();
+    logger.info('プロジェクト作成開始', { 
+      name: formData.name,
+      specificationLength: formData.specification.length,
+      advancedSettings: {
+        techStack: formData.techStack,
+        architecture: formData.architecture,
+        database: formData.database,
+        security: formData.security,
+        performance: formData.performance
+      }
+    });
+    
     setIsProcessing(true);
     
     // プロジェクト情報を更新
-    setProject({
+    const projectData = {
       ...project,
       name: formData.name,
       specification: formData.specification,
@@ -51,12 +79,17 @@ const ProjectCreation = () => {
         security: formData.security,
         performance: formData.performance
       },
-      currentPhase: 'requirements'
-    });
+      currentPhase: 'requirements',
+      createdAt: new Date().toISOString()
+    };
+    
+    setProject(projectData);
+    logger.debug('プロジェクトデータ設定完了', { projectName: projectData.name });
     
     // 処理のシミュレーション
     setTimeout(() => {
       setIsProcessing(false);
+      logger.info('プロジェクト作成完了、要件定義フェーズへ移動', { projectName: formData.name });
       navigate('/requirements');
     }, 1500);
   };
