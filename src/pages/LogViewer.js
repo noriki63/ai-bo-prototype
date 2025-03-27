@@ -25,23 +25,87 @@ const LogViewer = () => {
   useEffect(() => {
     checkElectronEnvironment();
   }, []);
+
+  // 追加: 初期化時にelectronAPIをチェック
+  useEffect(() => {
+    // API検出の診断を実行
+    checkElectronAPI();
+  }, []);
+
+  // 追加: electronAPIの検出を直接チェックするヘルパー関数
+  const checkElectronAPI = () => {
+    console.log("========== ELECTRON API 診断 ==========");
+    // windowオブジェクトの存在確認
+    console.log("window存在:", typeof window !== 'undefined');
+    
+    // electronAPIの存在確認
+    if (typeof window !== 'undefined') {
+      console.log("electronAPI存在:", typeof window.electronAPI !== 'undefined');
+      
+      // electronAPI内の各APIをチェック
+      if (typeof window.electronAPI !== 'undefined') {
+        const api = window.electronAPI;
+        console.log("- checkAPI:", typeof api.checkAPI === 'function' ? "利用可能" : "未定義");
+        console.log("- logs:", typeof api.logs !== 'undefined' ? "利用可能" : "未定義");
+        
+        // checkAPIメソッドが存在する場合は呼び出してみる
+        if (typeof api.checkAPI === 'function') {
+          const result = api.checkAPI();
+          console.log("checkAPI結果:", result);
+        }
+        
+        // logs APIの詳細を確認
+        if (typeof api.logs !== 'undefined') {
+          const logsAPI = api.logs;
+          console.log("  - getLogContent:", typeof logsAPI.getLogContent === 'function' ? "利用可能" : "未定義");
+          console.log("  - getErrorLogContent:", typeof logsAPI.getErrorLogContent === 'function' ? "利用可能" : "未定義");
+          console.log("  - getLogFiles:", typeof logsAPI.getLogFiles === 'function' ? "利用可能" : "未定義");
+          console.log("  - setLogLevel:", typeof logsAPI.setLogLevel === 'function' ? "利用可能" : "未定義");
+          console.log("  - writeLog:", typeof logsAPI.writeLog === 'function' ? "利用可能" : "未定義");
+        }
+      }
+    }
+    
+    // 診断結果をディレクトログに追加
+    setDirectLog(prev => [
+      ...prev,
+      "[DIAG] Electron API診断を実行しました",
+      `[DIAG] window.electronAPI存在: ${typeof window !== 'undefined' && typeof window.electronAPI !== 'undefined'}`,
+      `[DIAG] window.electronAPI.logs存在: ${typeof window !== 'undefined' && typeof window.electronAPI !== 'undefined' && typeof window.electronAPI.logs !== 'undefined'}`
+    ]);
+    
+    console.log("===================================");
+  };
   
   // Electron環境を詳細にチェックする関数
   const checkElectronEnvironment = () => {
     try {
       console.log("Electron環境の詳細チェックを開始");
       
+      // まず直接アクセスできるか試みる
+      checkElectronAPI();
+      
       const checks = {
         windowExists: !!window,
         electronAPIExists: !!(window && window.electronAPI),
         logsAPIExists: !!(window && window.electronAPI && window.electronAPI.logs),
         getLogContentExists: !!(window && window.electronAPI && window.electronAPI.logs && 
-                               typeof window.electronAPI.logs.getLogContent === 'function'),
+                             typeof window.electronAPI.logs.getLogContent === 'function'),
         writeLogExists: !!(window && window.electronAPI && window.electronAPI.logs && 
-                          typeof window.electronAPI.logs.writeLog === 'function'),
+                        typeof window.electronAPI.logs.writeLog === 'function'),
         processExists: !!(window && window.process),
         processTypeExists: !!(window && window.process && window.process.type)
       };
+      
+      // API参照をデバッグ
+      if (window.electronAPI) {
+        console.log("electronAPI構造:", Object.keys(window.electronAPI));
+        if (window.electronAPI.logs) {
+          console.log("logs API構造:", Object.keys(window.electronAPI.logs));
+        } else {
+          console.log("logs APIが見つかりません");
+        }
+      }
       
       console.log("Electron環境チェック結果:", checks);
       
@@ -71,6 +135,23 @@ const LogViewer = () => {
         '[INFO] Electron環境チェック詳細:',
         detailsText
       ]);
+      
+      // ただし、Electron APIがなくてもgetSystemInfoだけは試してみる
+      if (window.electronAPI && typeof window.electronAPI.getSystemInfo === 'function') {
+        window.electronAPI.getSystemInfo()
+          .then(info => {
+            console.log("システム情報取得成功:", info);
+            setDirectLog(prev => [
+              ...prev,
+              '[DIAG] システム情報取得成功',
+              `[DIAG] プラットフォーム: ${info.platform}`,
+              `[DIAG] アーキテクチャ: ${info.arch}`
+            ]);
+          })
+          .catch(err => {
+            console.error("システム情報取得エラー:", err);
+          });
+      }
       
       // Electron環境が利用可能ならすぐにログを読み込み
       if (isElectronEnv) {

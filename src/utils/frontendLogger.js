@@ -33,15 +33,19 @@ class FrontendLogger {
         // Developer Toolsにデバッグ情報を出力
         console.log('Electron検出テスト:');
         console.log('- window.electronAPI:', window.electronAPI !== undefined);
-        console.log('- window.electronAPI.logs:', window.electronAPI && window.electronAPI.logs !== undefined);
+        
+        if (window.electronAPI) {
+          console.log('- window.electronAPI.logs:', window.electronAPI.logs !== undefined);
+          
+          // IPCハンドラが実際に存在するか確認を追加
+          if (window.electronAPI.logs) {
+              console.log('- electronAPI.logs.getLogContent:', typeof window.electronAPI.logs.getLogContent === 'function');
+              console.log('- electronAPI.logs.writeLog:', typeof window.electronAPI.logs.writeLog === 'function');
+          }
+        }
+        
         console.log('- window.process:', window && window.process !== undefined);
         console.log('- window.process.type:', window && window.process && window.process.type);
-        
-        // IPCハンドラが実際に存在するか確認を追加
-        if (window.electronAPI && window.electronAPI.logs) {
-            console.log('- electronAPI.logs.getLogContent:', typeof window.electronAPI.logs.getLogContent === 'function');
-            console.log('- electronAPI.logs.writeLog:', typeof window.electronAPI.logs.writeLog === 'function');
-        }
         
         // より堅牢なチェック
         const isElectronEnv = !!(
@@ -79,7 +83,13 @@ class FrontendLogger {
       try {
         console.log(`ログコンテンツの取得を試みます (${lines}行)`);
         if (!window.electronAPI || !window.electronAPI.logs || !window.electronAPI.logs.getLogContent) {
-          console.error('electronAPI.logs.getLogContent 関数が見つかりません');
+          console.error('electronAPI.logs.getLogContent 関数が見つかりません', {
+            windowExists: !!window,
+            electronAPIExists: !!(window && window.electronAPI),
+            logsExists: !!(window && window.electronAPI && window.electronAPI.logs),
+            functionExists: !!(window && window.electronAPI && window.electronAPI.logs && 
+                          typeof window.electronAPI.logs.getLogContent === 'function')
+          });
           return 'ログ取得関数が利用できません。アプリを再起動してください。';
         }
         

@@ -16,6 +16,7 @@ const settingsPath = path.join(userDataPath, 'settings.json');
 
 // アプリケーション開始ログ
 logger.info('AI棒アプリケーション起動開始');
+logger.info(`Electron ${process.versions.electron}, Node ${process.versions.node}`);
 
 // 実行コマンドの結果を返すユーティリティ関数
 const execPromise = (command) => {
@@ -35,6 +36,35 @@ const execPromise = (command) => {
 
 const createWindow = () => {
   logger.info('メインウィンドウ作成開始');
+  
+  // preloadパスの計算とチェック
+  let preloadPath;
+  if (isDev) {
+    preloadPath = path.join(__dirname, 'preload.js');
+  } else {
+    // 本番環境では、preload.jsはbuild内に配置される
+    preloadPath = path.join(app.getAppPath(), 'build', 'preload.js');
+    // 開発環境のpreloadをコピーする場合はこちらを使用
+    // preloadPath = path.join(app.getAppPath(), 'preload.js');
+  }
+  
+  // preloadパスのチェック
+  try {
+    const stats = fs.statSync(preloadPath);
+    logger.info(`preloadスクリプトを検出: ${preloadPath} (サイズ: ${stats.size}バイト)`);
+  } catch (err) {
+    logger.error(`preloadスクリプトが見つかりません: ${preloadPath}`, err);
+    // フォールバックパスを試す
+    const altPath = path.join(__dirname, '..', 'public', 'preload.js');
+    try {
+      const stats = fs.statSync(altPath);
+      logger.info(`代替preloadスクリプトを検出: ${altPath} (サイズ: ${stats.size}バイト)`);
+      preloadPath = altPath;
+    } catch (altErr) {
+      logger.error(`代替preloadスクリプトも見つかりません: ${altErr.message}`);
+    }
+  }
+  
   // メインウィンドウを作成
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -44,7 +74,11 @@ const createWindow = () => {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: preloadPath,
+      // 2023年以降のElectronではいくつかの追加設定が推奨されます
+      sandbox: false,
+      enableRemoteModule: false,
+      worldSafeExecuteJavaScript: true,
     }
   });
 
@@ -66,6 +100,21 @@ const createWindow = () => {
   mainWindow.on('closed', () => {
     logger.info('メインウィンドウが閉じられました');
     mainWindow = null;
+  });
+  
+  // コンテンツ読み込み完了時のログ
+  mainWindow.webContents.on('did-finish-load', () => {
+    logger.info('Webコンテンツの読み込みが完了しました');
+    // レンダラープロセスのコンソールをメインプロセスにも表示
+    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+      const levels = ['log', 'warning', 'error', 'debug'];
+      logger.debug(`[Renderer] ${levels[level] || 'info'}: ${message}`);
+    });
+  });
+  
+  // デバッグ用：preload.jsの読み込み状態を確認
+  mainWindow.webContents.on('preload-error', (event, preloadPath, error) => {
+    logger.error(`Preloadスクリプト読み込みエラー: ${preloadPath}`, { error: error.message });
   });
   
   logger.info('メインウィンドウ作成完了');
@@ -185,6 +234,12 @@ ipcMain.handle('write-log', (event, level, message, dataStr) => {
 });
 
 // IPCメインプロセスハンドラ
+
+// 開発環境と本番環境の両方で動作するかチェックするAPI
+ipcMain.handle('check-electron-api', () => {
+  logger.info('Electron API動作チェック - 成功');
+  return { success: true, message: 'Electron API is working properly' };
+});
 
 // ファイルシステム操作
 ipcMain.handle('fs-read-file', async (event, filePath, options) => {
