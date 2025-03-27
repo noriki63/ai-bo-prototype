@@ -118,6 +118,39 @@ ipcMain.handle('set-log-level', (event, level) => {
   return true;
 });
 
+// フロントエンドからのログ書き込みハンドラ
+ipcMain.handle('write-log', (event, level, message, dataStr) => {
+  try {
+    const data = dataStr ? JSON.parse(dataStr) : null;
+    
+    // ログレベルに応じて適切なロガーメソッドを呼び出す
+    switch (level) {
+      case 'DEBUG':
+        logger.debug(message, data);
+        break;
+      case 'INFO':
+        logger.info(message, data);
+        break;
+      case 'WARN':
+        logger.warn(message, data);
+        break;
+      case 'ERROR':
+        logger.error(message, data);
+        break;
+      case 'FATAL':
+        logger.fatal(message, data);
+        break;
+      default:
+        logger.info(message, data);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('ログ書き込みエラー:', error);
+    return false;
+  }
+});
+
 // IPCメインプロセスハンドラ
 
 // ファイルシステム操作
@@ -211,4 +244,31 @@ ipcMain.handle('get-system-info', async () => {
     osInfo,
     memoryInfo
   };
+});
+
+// 設定の保存と取得
+ipcMain.handle('save-settings', async (event, settings) => {
+  try {
+    logger.debug('設定保存');
+    await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+    return true;
+  } catch (error) {
+    logger.error('設定保存エラー', { error: error.message });
+    throw error;
+  }
+});
+
+ipcMain.handle('get-settings', async () => {
+  try {
+    if (await fs.access(settingsPath).then(() => true).catch(() => false)) {
+      logger.debug('既存設定読み込み');
+      const data = await fs.readFile(settingsPath, 'utf8');
+      return JSON.parse(data);
+    }
+    logger.debug('設定ファイルが存在しません');
+    return null;
+  } catch (error) {
+    logger.error('設定読み込みエラー', { error: error.message });
+    return null;
+  }
 });

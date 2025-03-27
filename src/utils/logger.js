@@ -39,6 +39,13 @@ class AIBoLogger {
     
     // 古いログをアーカイブ
     this._rotateLogsIfNeeded();
+    
+    // 初期ログファイルの作成を確保
+    this._createEmptyLogFilesIfNeeded();
+    
+    console.log(`ログディレクトリ: ${this.logDir}`);
+    console.log(`ログファイル: ${this.logFile}`);
+    console.log(`エラーログファイル: ${this.errorLogFile}`);
   }
   
   /**
@@ -64,9 +71,32 @@ class AIBoLogger {
     try {
       if (!fs.existsSync(this.logDir)) {
         fs.mkdirSync(this.logDir, { recursive: true });
+        console.log(`ログディレクトリを作成しました: ${this.logDir}`);
       }
     } catch (error) {
       console.error('ログディレクトリの作成に失敗しました:', error);
+    }
+  }
+  
+  /**
+   * 空のログファイルを作成（必要な場合）
+   * @private
+   */
+  _createEmptyLogFilesIfNeeded() {
+    try {
+      // 通常のログファイル
+      if (!fs.existsSync(this.logFile)) {
+        fs.writeFileSync(this.logFile, '');
+        console.log(`新しいログファイルを作成しました: ${this.logFile}`);
+      }
+      
+      // エラーログファイル
+      if (!fs.existsSync(this.errorLogFile)) {
+        fs.writeFileSync(this.errorLogFile, '');
+        console.log(`新しいエラーログファイルを作成しました: ${this.errorLogFile}`);
+      }
+    } catch (error) {
+      console.error('ログファイルの作成に失敗しました:', error);
     }
   }
   
@@ -83,6 +113,9 @@ class AIBoLogger {
           const timestamp = new Date().toISOString().replace(/:/g, '-');
           const archiveLogFile = path.join(this.logDir, `aibo-${timestamp}.log`);
           fs.renameSync(this.logFile, archiveLogFile);
+          console.log(`ログファイルをローテーションしました: ${archiveLogFile}`);
+          // 新しい空のログファイルを作成
+          fs.writeFileSync(this.logFile, '');
         }
       }
       
@@ -93,6 +126,9 @@ class AIBoLogger {
           const timestamp = new Date().toISOString().replace(/:/g, '-');
           const archiveLogFile = path.join(this.logDir, `aibo-error-${timestamp}.log`);
           fs.renameSync(this.errorLogFile, archiveLogFile);
+          console.log(`エラーログファイルをローテーションしました: ${archiveLogFile}`);
+          // 新しい空のログファイルを作成
+          fs.writeFileSync(this.errorLogFile, '');
         }
       }
     } catch (error) {
@@ -137,6 +173,19 @@ class AIBoLogger {
           console.log(logEntry);
       }
       
+      // ログディレクトリの存在確認を毎回行う
+      this._ensureLogDirectoryExists();
+      
+      // ファイルが存在しない場合は作成する
+      if (!fs.existsSync(this.logFile)) {
+        fs.writeFileSync(this.logFile, '');
+      }
+      
+      // エラーログファイルが存在しない場合も作成
+      if ((level === 'ERROR' || level === 'FATAL') && !fs.existsSync(this.errorLogFile)) {
+        fs.writeFileSync(this.errorLogFile, '');
+      }
+      
       // ファイル出力（通常ログ）
       fs.appendFileSync(this.logFile, logEntry);
       
@@ -177,7 +226,9 @@ class AIBoLogger {
    */
   async getLogContent(lines = 100) {
     try {
+      // ファイルが存在しない場合は空のファイルを作成
       if (!fs.existsSync(this.logFile)) {
+        fs.writeFileSync(this.logFile, '');
         return '';
       }
       
@@ -187,7 +238,7 @@ class AIBoLogger {
       return recentLines.join('\n');
     } catch (error) {
       console.error('ログファイルの読み込みに失敗しました:', error);
-      return '';
+      return `エラー: ${error.message}`;
     }
   }
   
@@ -198,7 +249,9 @@ class AIBoLogger {
    */
   async getErrorLogContent(lines = 100) {
     try {
+      // ファイルが存在しない場合は空のファイルを作成
       if (!fs.existsSync(this.errorLogFile)) {
+        fs.writeFileSync(this.errorLogFile, '');
         return '';
       }
       
@@ -208,7 +261,7 @@ class AIBoLogger {
       return recentLines.join('\n');
     } catch (error) {
       console.error('エラーログファイルの読み込みに失敗しました:', error);
-      return '';
+      return `エラー: ${error.message}`;
     }
   }
   
@@ -218,6 +271,9 @@ class AIBoLogger {
    */
   async getLogFiles() {
     try {
+      // ディレクトリが存在しない場合は作成
+      this._ensureLogDirectoryExists();
+      
       const files = await fs.promises.readdir(this.logDir);
       const logFiles = [];
       

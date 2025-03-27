@@ -1,5 +1,3 @@
-// src/utils/frontendLogger.js
-
 /**
  * フロントエンドロガークラス
  * 
@@ -21,7 +19,32 @@ class FrontendLogger {
       this.currentLevel = this.levels.INFO;
       
       // Electron API が利用可能かどうか
-      this.isElectron = window.electronAPI !== undefined;
+      this.isElectron = this._checkElectronAvailability();
+      
+      console.log(`フロントエンドロガー初期化: Electron環境=${this.isElectron}`);
+    }
+    
+    /**
+     * Electron APIが利用可能かどうかをチェック
+     * @private
+     * @returns {boolean}
+     */
+    _checkElectronAvailability() {
+        // Developer Toolsにデバッグ情報を出力
+        console.log('Electron検出テスト:');
+        console.log('- window.electronAPI:', window.electronAPI !== undefined);
+        console.log('- window.process:', window && window.process !== undefined);
+        console.log('- window.process.type:', window && window.process && window.process.type);
+        
+        // より堅牢なチェック
+        return (
+        // 標準的なElectron検出
+        (window && window.process && window.process.type) || 
+        // electronAPIの存在確認（preload.jsで定義）
+        (window && window.electronAPI !== undefined) ||
+        // location.protocolでfile:プロトコルを確認（Electron buildの場合）
+        (window && window.location && window.location.protocol === 'file:')
+        );
     }
     
     /**
@@ -39,9 +62,19 @@ class FrontendLogger {
      */
     async getLogContent(lines = 100) {
       if (!this.isElectronEnv()) {
+        console.warn('Electron環境でないためログを取得できません');
         return 'Electron環境でのみ利用可能です';
       }
-      return await window.electronAPI.logs.getLogContent(lines);
+      
+      try {
+        console.log(`ログコンテンツの取得を試みます (${lines}行)`);
+        const content = await window.electronAPI.logs.getLogContent(lines);
+        console.log(`ログコンテンツ取得成功: ${content?.length || 0}バイト`);
+        return content;
+      } catch (error) {
+        console.error('ログコンテンツ取得エラー:', error);
+        return `エラー: ${error.message}`;
+      }
     }
     
     /**
@@ -51,9 +84,19 @@ class FrontendLogger {
      */
     async getErrorLogContent(lines = 100) {
       if (!this.isElectronEnv()) {
+        console.warn('Electron環境でないためエラーログを取得できません');
         return 'Electron環境でのみ利用可能です';
       }
-      return await window.electronAPI.logs.getErrorLogContent(lines);
+      
+      try {
+        console.log(`エラーログコンテンツの取得を試みます (${lines}行)`);
+        const content = await window.electronAPI.logs.getErrorLogContent(lines);
+        console.log(`エラーログコンテンツ取得成功: ${content?.length || 0}バイト`);
+        return content;
+      } catch (error) {
+        console.error('エラーログコンテンツ取得エラー:', error);
+        return `エラー: ${error.message}`;
+      }
     }
     
     /**
@@ -62,9 +105,19 @@ class FrontendLogger {
      */
     async getLogFiles() {
       if (!this.isElectronEnv()) {
+        console.warn('Electron環境でないためログファイル一覧を取得できません');
         return [];
       }
-      return await window.electronAPI.logs.getLogFiles();
+      
+      try {
+        console.log('ログファイル一覧の取得を試みます');
+        const files = await window.electronAPI.logs.getLogFiles();
+        console.log(`ログファイル一覧取得成功: ${files.length}ファイル`);
+        return files;
+      } catch (error) {
+        console.error('ログファイル一覧取得エラー:', error);
+        return [];
+      }
     }
     
     /**
@@ -73,6 +126,7 @@ class FrontendLogger {
      */
     setLogLevel(level) {
       if (this.levels[level] !== undefined) {
+        console.log(`ログレベルを設定: ${level}`);
         this.currentLevel = this.levels[level];
         
         if (this.isElectronEnv()) {
@@ -180,8 +234,8 @@ class FrontendLogger {
     fatal(message, data) {
       this._log('FATAL', message, data);
     }
-  }
-  
-  // シングルトンインスタンス
-  const logger = new FrontendLogger();
-  export default logger;
+}
+
+// シングルトンインスタンス
+const logger = new FrontendLogger();
+export default logger;
