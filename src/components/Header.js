@@ -12,13 +12,16 @@ const Header = () => {
     return location.pathname === path ? 'active' : '';
   };
 
+  // 現在進行中のプロジェクトがあるかどうかを判定
+  const hasActiveProject = project.name && project.name.length > 0;
+
   return (
     <header className="app-header">
       <div className="logo">
         <h1>AI棒</h1>
       </div>
       
-      {project.name && (
+      {hasActiveProject && (
         <div className="project-info">
           <h2>{project.name}</h2>
         </div>
@@ -26,11 +29,14 @@ const Header = () => {
       
       <nav className="main-navigation">
         <ul>
-          {project.name && (
+          {/* プロジェクト作成は常に表示する */}
+          <li className={isActive('/')}>
+            <Link to="/">プロジェクト作成</Link>
+          </li>
+          
+          {/* その他のリンクはプロジェクトがアクティブな時のみ表示 */}
+          {hasActiveProject && (
             <>
-              <li className={isActive('/')}>
-                <Link to="/">プロジェクト作成</Link>
-              </li>
               <li className={isActive('/requirements')}>
                 <Link to="/requirements">要件定義</Link>
               </li>
@@ -42,6 +48,7 @@ const Header = () => {
               </li>
             </>
           )}
+          
           <li className={isActive('/settings')}>
             <Link to="/settings" className="settings-link">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-gear-fill" viewBox="0 0 16 16">
