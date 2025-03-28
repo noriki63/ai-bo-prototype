@@ -18,47 +18,137 @@ class FrontendLogger {
       // デフォルトのログレベル
       this.currentLevel = this.levels.INFO;
       
-      // Electron API が利用可能かどうか
-      this.isElectron = this._checkElectronAvailability();
+      // ログのローカルバッファ（API利用不可時用）
+      this.logBuffer = [];
       
-      console.log(`フロントエンドロガー初期化: Electron環境=${this.isElectron}`);
+      // 初期化状態
+      this.initialized = false;
+      this.initializeAttempted = false;
+      
+      // Electron API が利用可能かどうか（初期化時に確認）
+      this.isElectron = false;
+      this.hasLogsAPI = false;
+      
+      // 初期化
+      this._initialize();
+      
+      console.log(`フロントエンドロガー初期化開始...`);
     }
     
     /**
-     * Electron APIが利用可能かどうかをチェック
+     * ロガーを初期化し、Electron環境を検出する
      * @private
-     * @returns {boolean}
      */
-    _checkElectronAvailability() {
-        // Developer Toolsにデバッグ情報を出力
-        console.log('Electron検出テスト:');
-        console.log('- window.electronAPI:', window.electronAPI !== undefined);
+    _initialize() {
+      if (this.initializeAttempted) return;
+      this.initializeAttempted = true;
+
+      // electronAPIの利用可能性をチェック
+      if (window && window.electronAPI) {
+        this.isElectron = true;
         
-        if (window.electronAPI) {
-          console.log('- window.electronAPI.logs:', window.electronAPI.logs !== undefined);
-          
-          // IPCハンドラが実際に存在するか確認を追加
-          if (window.electronAPI.logs) {
-              console.log('- electronAPI.logs.getLogContent:', typeof window.electronAPI.logs.getLogContent === 'function');
-              console.log('- electronAPI.logs.writeLog:', typeof window.electronAPI.logs.writeLog === 'function');
+        // API初期化状態を確認（新メソッド）
+        if (typeof window.electronAPI.isInitialized === 'function') {
+          const isInitialized = window.electronAPI.isInitialized();
+          if (isInitialized) {
+            this.initialized = true;
+            this.hasLogsAPI = true;
+            console.log('フロントエンドロガー: Electron API 初期化済み');
+          } else {
+            console.log('フロントエンドロガー: Electron API 初期化待機中');
+            // APIが初期化完了したら再度チェック
+            this._waitForApiInitialization();
+          }
+        } else {
+          // 従来の方法でチェック
+          this.hasLogsAPI = this._checkLogsAPI();
+          if (this.hasLogsAPI) {
+            this.initialized = true;
+            console.log('フロントエンドロガー: 従来API検出済み');
+          } else {
+            console.log('フロントエンドロガー: Electron API検出済み、ログAPI利用不可');
+          }
+        }
+      } else {
+        console.log('フロントエンドロガー: Electron API未検出');
+        this.isElectron = false;
+        this.hasLogsAPI = false;
+      }
+      
+      // アプリケーション終了時にバッファを送信
+      if (window) {
+        window.addEventListener('beforeunload', () => {
+          this._flushLogBuffer();
+        });
+      }
+      
+      // 診断ログ出力
+      const diagnostics = {
+        electronAPIExists: this.isElectron,
+        logsAPIAvailable: this.hasLogsAPI,
+        initialized: this.initialized
+      };
+      console.log('フロントエンドロガー初期化完了:', diagnostics);
+    }
+    
+    /**
+     * APIの初期化を待機する
+     * @private
+     */
+    _waitForApiInitialization() {
+      // 最大10秒間待機
+      let attempts = 0;
+      const maxAttempts = 20; // 500ms x 20 = 10秒
+      
+      const checkInitialization = () => {
+        if (window && window.electronAPI && typeof window.electronAPI.isInitialized === 'function') {
+          if (window.electronAPI.isInitialized()) {
+            this.initialized = true;
+            this.hasLogsAPI = true;
+            console.log('フロントエンドロガー: Electron API 初期化完了');
+            this._flushLogBuffer(); // バッファされたログを送信
+            return;
+          }
+        } else if (window && window.electronAPI) {
+          // 従来の方法でチェック
+          this.hasLogsAPI = this._checkLogsAPI();
+          if (this.hasLogsAPI) {
+            this.initialized = true;
+            console.log('フロントエンドロガー: 従来API利用可能');
+            this._flushLogBuffer(); // バッファされたログを送信
+            return;
           }
         }
         
-        console.log('- window.process:', window && window.process !== undefined);
-        console.log('- window.process.type:', window && window.process && window.process.type);
-        
-        // より堅牢なチェック
-        const isElectronEnv = !!(
-            // electronAPIの存在確認（preload.jsで定義）- 最も信頼性の高い方法
-            (window && window.electronAPI && window.electronAPI.logs) ||
-            // 標準的なElectron検出
-            (window && window.process && window.process.type) || 
-            // location.protocolでfile:プロトコルを確認（Electron buildの場合）
-            (window && window.location && window.location.protocol === 'file:')
-        );
-        
-        console.log('Electron環境検出結果:', isElectronEnv);
-        return isElectronEnv;
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(checkInitialization, 500);
+        } else {
+          console.warn('フロントエンドロガー: API初期化タイムアウト、ローカルログのみ使用');
+        }
+      };
+      
+      checkInitialization();
+    }
+    
+    /**
+     * ログAPIが利用可能かチェック
+     * @private
+     * @returns {boolean}
+     */
+    _checkLogsAPI() {
+      // 直接メソッドをチェック
+      const hasDirectMethods = window.electronAPI && 
+          typeof window.electronAPI.writeLog === 'function' &&
+          typeof window.electronAPI.getLogContent === 'function';
+      
+      // 従来のネストされたメソッドをチェック
+      const hasNestedMethods = window.electronAPI && 
+          window.electronAPI.logs && 
+          typeof window.electronAPI.logs.writeLog === 'function' &&
+          typeof window.electronAPI.logs.getLogContent === 'function';
+          
+      return hasDirectMethods || hasNestedMethods;
     }
     
     /**
@@ -70,32 +160,98 @@ class FrontendLogger {
     }
     
     /**
+     * ログAPIが利用可能かどうかを確認
+     * @returns {boolean}
+     */
+    isLogsAPIAvailable() {
+      return this.hasLogsAPI && this.initialized;
+    }
+    
+    /**
+     * バッファされたログを送信
+     * @private
+     */
+    _flushLogBuffer() {
+      if (!this.isLogsAPIAvailable() || this.logBuffer.length === 0) return;
+      
+      console.log(`フロントエンドロガー: ${this.logBuffer.length}件のバッファログを送信`);
+      
+      // バッファからログを取り出して送信
+      for (const logEntry of this.logBuffer) {
+        const { level, message, data } = logEntry;
+        this._sendLogToMain(level, message, data);
+      }
+      
+      // バッファをクリア
+      this.logBuffer = [];
+    }
+    
+    /**
+     * ログをメインプロセスに送信
+     * @private
+     * @param {string} level - ログレベル
+     * @param {string} message - ログメッセージ
+     * @param {Object} data - 追加データ
+     */
+    _sendLogToMain(level, message, data) {
+      if (!this.isElectronEnv()) return;
+      
+      try {
+        // データをJSON文字列に変換（nullの場合は空オブジェクト）
+        const dataStr = data ? JSON.stringify(data) : '{}';
+        
+        // 直接メソッドを試す
+        if (window.electronAPI && typeof window.electronAPI.writeLog === 'function') {
+          window.electronAPI.writeLog(level, message, dataStr).catch(err => {
+            console.error('ログ送信エラー (直接API):', err);
+          });
+          return;
+        }
+        
+        // 従来メソッドを試す
+        if (window.electronAPI && window.electronAPI.logs && 
+            typeof window.electronAPI.logs.writeLog === 'function') {
+          window.electronAPI.logs.writeLog(level, message, dataStr).catch(err => {
+            console.error('ログ送信エラー (従来API):', err);
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('ログ変換/送信エラー:', error);
+      }
+    }
+    
+    /**
      * ログの内容を取得
      * @param {number} lines - 取得する行数
      * @returns {Promise<string>} ログの内容
      */
     async getLogContent(lines = 100) {
-      if (!this.isElectronEnv()) {
-        console.warn('Electron環境でないためログを取得できません');
-        return 'Electron環境でのみ利用可能です';
+      if (!this.isLogsAPIAvailable()) {
+        console.warn('ログAPI利用不可のためログを取得できません');
+        return 'ログAPIが利用できません';
       }
       
       try {
-        console.log(`ログコンテンツの取得を試みます (${lines}行)`);
-        if (!window.electronAPI || !window.electronAPI.logs || !window.electronAPI.logs.getLogContent) {
-          console.error('electronAPI.logs.getLogContent 関数が見つかりません', {
-            windowExists: !!window,
-            electronAPIExists: !!(window && window.electronAPI),
-            logsExists: !!(window && window.electronAPI && window.electronAPI.logs),
-            functionExists: !!(window && window.electronAPI && window.electronAPI.logs && 
-                          typeof window.electronAPI.logs.getLogContent === 'function')
-          });
-          return 'ログ取得関数が利用できません。アプリを再起動してください。';
+        // 直接メソッドを試す
+        if (window.electronAPI && typeof window.electronAPI.getLogContent === 'function') {
+          try {
+            const content = await window.electronAPI.getLogContent(lines);
+            return content || 'ログは空です';
+          } catch (error) {
+            console.error('直接APIでのログ取得エラー:', error);
+            // 従来メソッドでリトライ
+          }
         }
         
-        const content = await window.electronAPI.logs.getLogContent(lines);
-        console.log(`ログコンテンツ取得成功: ${content?.length || 0}バイト`);
-        return content;
+        // 従来メソッドを試す
+        if (window.electronAPI && window.electronAPI.logs && 
+            typeof window.electronAPI.logs.getLogContent === 'function') {
+          const content = await window.electronAPI.logs.getLogContent(lines);
+          return content || 'ログは空です';
+        }
+        
+        return 'ログ取得機能が利用できません';
       } catch (error) {
         console.error('ログコンテンツ取得エラー:', error);
         return `エラー: ${error.message}`;
@@ -108,21 +264,31 @@ class FrontendLogger {
      * @returns {Promise<string>} エラーログの内容
      */
     async getErrorLogContent(lines = 100) {
-      if (!this.isElectronEnv()) {
-        console.warn('Electron環境でないためエラーログを取得できません');
-        return 'Electron環境でのみ利用可能です';
+      if (!this.isLogsAPIAvailable()) {
+        console.warn('ログAPI利用不可のためエラーログを取得できません');
+        return 'ログAPIが利用できません';
       }
       
       try {
-        console.log(`エラーログコンテンツの取得を試みます (${lines}行)`);
-        if (!window.electronAPI || !window.electronAPI.logs || !window.electronAPI.logs.getErrorLogContent) {
-          console.error('electronAPI.logs.getErrorLogContent 関数が見つかりません');
-          return 'エラーログ取得関数が利用できません。アプリを再起動してください。';
+        // 直接メソッドを試す
+        if (window.electronAPI && typeof window.electronAPI.getErrorLogContent === 'function') {
+          try {
+            const content = await window.electronAPI.getErrorLogContent(lines);
+            return content || 'エラーログは空です';
+          } catch (error) {
+            console.error('直接APIでのエラーログ取得エラー:', error);
+            // 従来メソッドでリトライ
+          }
         }
         
-        const content = await window.electronAPI.logs.getErrorLogContent(lines);
-        console.log(`エラーログコンテンツ取得成功: ${content?.length || 0}バイト`);
-        return content;
+        // 従来メソッドを試す
+        if (window.electronAPI && window.electronAPI.logs && 
+            typeof window.electronAPI.logs.getErrorLogContent === 'function') {
+          const content = await window.electronAPI.logs.getErrorLogContent(lines);
+          return content || 'エラーログは空です';
+        }
+        
+        return 'エラーログ取得機能が利用できません';
       } catch (error) {
         console.error('エラーログコンテンツ取得エラー:', error);
         return `エラー: ${error.message}`;
@@ -134,21 +300,29 @@ class FrontendLogger {
      * @returns {Promise<Array>} ログファイル情報の配列
      */
     async getLogFiles() {
-      if (!this.isElectronEnv()) {
-        console.warn('Electron環境でないためログファイル一覧を取得できません');
+      if (!this.isLogsAPIAvailable()) {
+        console.warn('ログAPI利用不可のためログファイル一覧を取得できません');
         return [];
       }
       
       try {
-        console.log('ログファイル一覧の取得を試みます');
-        if (!window.electronAPI || !window.electronAPI.logs || !window.electronAPI.logs.getLogFiles) {
-          console.error('electronAPI.logs.getLogFiles 関数が見つかりません');
-          return [];
+        // 直接メソッドを試す
+        if (window.electronAPI && typeof window.electronAPI.getLogFiles === 'function') {
+          try {
+            return await window.electronAPI.getLogFiles();
+          } catch (error) {
+            console.error('直接APIでのログファイル一覧取得エラー:', error);
+            // 従来メソッドでリトライ
+          }
         }
         
-        const files = await window.electronAPI.logs.getLogFiles();
-        console.log(`ログファイル一覧取得成功: ${files.length}ファイル`);
-        return files;
+        // 従来メソッドを試す
+        if (window.electronAPI && window.electronAPI.logs && 
+            typeof window.electronAPI.logs.getLogFiles === 'function') {
+          return await window.electronAPI.logs.getLogFiles();
+        }
+        
+        return [];
       } catch (error) {
         console.error('ログファイル一覧取得エラー:', error);
         return [];
@@ -164,10 +338,22 @@ class FrontendLogger {
         console.log(`ログレベルを設定: ${level}`);
         this.currentLevel = this.levels[level];
         
-        if (this.isElectronEnv() && window.electronAPI && window.electronAPI.logs && window.electronAPI.logs.setLogLevel) {
-          window.electronAPI.logs.setLogLevel(level).catch(err => {
-            console.error('ログレベル設定エラー:', err);
-          });
+        if (this.isLogsAPIAvailable()) {
+          // 直接メソッドを試す
+          if (window.electronAPI && typeof window.electronAPI.setLogLevel === 'function') {
+            window.electronAPI.setLogLevel(level).catch(err => {
+              console.error('ログレベル設定エラー (直接API):', err);
+            });
+            return;
+          }
+          
+          // 従来メソッドを試す
+          if (window.electronAPI && window.electronAPI.logs && 
+              typeof window.electronAPI.logs.setLogLevel === 'function') {
+            window.electronAPI.logs.setLogLevel(level).catch(err => {
+              console.error('ログレベル設定エラー (従来API):', err);
+            });
+          }
         } else {
           console.warn('Electron環境でないためログレベルをメインプロセスに反映できません');
         }
@@ -212,17 +398,15 @@ class FrontendLogger {
       }
       
       // Electron環境の場合、IPCを使ってメインプロセスにログを送信
-      if (this.isElectronEnv() && window.electronAPI && window.electronAPI.logs && window.electronAPI.logs.writeLog) {
-        try {
-          // データをJSON文字列に変換（nullの場合は空オブジェクト）
-          const dataStr = data ? JSON.stringify(data) : '{}';
-          
-          // メインプロセスにログを送信
-          window.electronAPI.logs.writeLog(level, message, dataStr).catch(err => {
-            console.error('ログ送信エラー:', err);
-          });
-        } catch (error) {
-          console.error('ログ変換/送信エラー:', error);
+      if (this.isLogsAPIAvailable()) {
+        this._sendLogToMain(level, message, data);
+      } else if (this.isElectronEnv()) {
+        // ログAPIが初期化されていないためバッファに追加
+        this.logBuffer.push({ level, message, data });
+        
+        // バッファが大きすぎる場合は古いログを削除
+        if (this.logBuffer.length > 1000) {
+          this.logBuffer.shift(); // 最も古いログを削除
         }
       }
     }

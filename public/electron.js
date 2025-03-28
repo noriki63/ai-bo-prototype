@@ -37,55 +37,41 @@ const execPromise = (command) => {
 const createWindow = () => {
   logger.info('メインウィンドウ作成開始');
   
-  // preloadパスの計算とチェック
+  // preloadパスの計算 - 単純化して信頼性向上
   let preloadPath;
   if (isDev) {
     preloadPath = path.join(__dirname, 'preload.js');
     logger.info(`開発環境用preloadパス: ${preloadPath}`);
   } else {
-    // Try multiple potential locations for the preload script
-    const possibleLocations = [
-      path.join(app.getAppPath(), 'build', 'preload.js'),
-      path.join(app.getAppPath(), 'preload.js'),
-      path.join(app.getAppPath(), 'public', 'preload.js'),
-      path.join(__dirname, 'preload.js')
-    ];
+    // 本番環境では固定パスを使用
+    preloadPath = path.join(app.getAppPath(), 'build', 'preload.js');
+    logger.info(`本番環境用preloadパス: ${preloadPath}`);
     
-    // Try each location until we find the file
-    for (const location of possibleLocations) {
-      try {
-        if (fs.existsSync(location)) {
-          preloadPath = location;
-          logger.info(`本番環境用preloadパスを発見: ${preloadPath}`);
-          break;
-        }
-      } catch (err) {
-        logger.debug(`preloadチェック中: ${location} - 存在しません`);
-      }
-    }
-    
-    // If we still don't have a preload path, use the default
-    if (!preloadPath) {
+    // パスが存在しない場合の単純なフォールバック
+    if (!fs.existsSync(preloadPath)) {
       preloadPath = path.join(__dirname, 'preload.js');
-      logger.warn(`プロダクションpreloadが見つからないため、デフォルトパスを使用: ${preloadPath}`);
+      logger.info(`フォールバックpreloadパス: ${preloadPath}`);
     }
   }
   
-  // preloadパスのチェック
+  // preloadファイルの存在確認
   try {
-    const stats = fs.statSync(preloadPath);
-    logger.info(`preloadスクリプトを検出: ${preloadPath} (サイズ: ${stats.size}バイト)`);
-  } catch (err) {
-    logger.error(`preloadスクリプトが見つかりません: ${preloadPath}`, err);
-    // フォールバックパスを試す
-    const altPath = path.join(__dirname, '..', 'public', 'preload.js');
-    try {
-      const stats = fs.statSync(altPath);
-      logger.info(`代替preloadスクリプトを検出: ${altPath} (サイズ: ${stats.size}バイト)`);
-      preloadPath = altPath;
-    } catch (altErr) {
-      logger.error(`代替preloadスクリプトも見つかりません: ${altErr.message}`);
+    const fileExists = fs.existsSync(preloadPath);
+    logger.info(`preloadファイル確認: ${preloadPath} (存在: ${fileExists})`);
+    
+    if (!fileExists) {
+      logger.error(`preloadファイルが見つかりません: ${preloadPath}`);
+      // フォールバックパスを試行
+      const altPath = path.join(__dirname, 'preload.js');
+      if (fs.existsSync(altPath)) {
+        preloadPath = altPath;
+        logger.info(`代替preloadパスを使用: ${preloadPath}`);
+      } else {
+        logger.error(`代替preloadファイルも見つかりません: ${altPath}`);
+      }
     }
+  } catch (err) {
+    logger.error(`preloadファイル確認中にエラー: ${err.message}`);
   }
   
   // メインウィンドウを作成
@@ -168,13 +154,20 @@ app.on('activate', () => {
   }
 });
 
-// ログ関連IPC
+// API テスト用のシンプルなハンドラ
+ipcMain.handle('check-electron-api', () => {
+  logger.info('Electron API動作チェック - 成功');
+  return { success: true, message: 'Electron API is working properly' };
+});
+
+// ログ関連IPC - シンプルなエラーハンドリングを追加
 ipcMain.handle('get-log-content', async (event, lines) => {
   logger.debug(`ログ内容取得リクエスト (${lines}行)`);
   try {
+    // 必ず実際のログ内容を返すようにする
     const content = await logger.getLogContent(lines);
     logger.debug(`ログ内容取得成功: ${content.length}バイト`);
-    return content;
+    return content || 'ログは空です';
   } catch (error) {
     logger.error('ログ内容取得エラー', { error: error.message });
     return `エラー: ${error.message}`;
@@ -186,7 +179,7 @@ ipcMain.handle('get-error-log-content', async (event, lines) => {
   try {
     const content = await logger.getErrorLogContent(lines);
     logger.debug(`エラーログ内容取得成功: ${content.length}バイト`);
-    return content;
+    return content || 'エラーログは空です';
   } catch (error) {
     logger.error('エラーログ内容取得エラー', { error: error.message });
     return `エラー: ${error.message}`;
@@ -224,7 +217,8 @@ ipcMain.handle('write-log', (event, level, message, dataStr) => {
       try {
         data = JSON.parse(dataStr);
       } catch (jsonError) {
-        console.error('ログデータのJSON解析エラー:', jsonError);
+        logger.error('ログデータのJSON解析エラー:', jsonError);
+        data = { parseError: true, originalData: dataStr };
       }
     }
     
@@ -251,17 +245,9 @@ ipcMain.handle('write-log', (event, level, message, dataStr) => {
     
     return true;
   } catch (error) {
-    console.error('ログ書き込みエラー:', error);
+    logger.error('ログ書き込みエラー:', error);
     return false;
   }
-});
-
-// IPCメインプロセスハンドラ
-
-// 開発環境と本番環境の両方で動作するかチェックするAPI
-ipcMain.handle('check-electron-api', () => {
-  logger.info('Electron API動作チェック - 成功');
-  return { success: true, message: 'Electron API is working properly' };
 });
 
 // ファイルシステム操作
@@ -371,15 +357,58 @@ ipcMain.handle('save-settings', async (event, settings) => {
 
 ipcMain.handle('get-settings', async () => {
   try {
-    if (await fs.access(settingsPath).then(() => true).catch(() => false)) {
+    // fs.accessでファイルの存在確認
+    let fileExists = false;
+    try {
+      await fs.access(settingsPath);
+      fileExists = true;
+    } catch (e) {
+      fileExists = false;
+    }
+    
+    if (fileExists) {
       logger.debug('既存設定読み込み');
       const data = await fs.readFile(settingsPath, 'utf8');
       return JSON.parse(data);
     }
+    
     logger.debug('設定ファイルが存在しません');
     return null;
   } catch (error) {
     logger.error('設定読み込みエラー', { error: error.message });
     return null;
   }
+});
+
+// 以下、API接続テスト用のダミーハンドラ
+// 実際の実装では、外部APIへの接続テストロジックを追加
+
+ipcMain.handle('test-openai-connection', async (event, apiKey, apiEndpoint) => {
+  logger.info('OpenAI接続テスト', { endpoint: apiEndpoint || 'デフォルト' });
+  return { success: true, message: 'OpenAI APIに正常に接続できました（シミュレーション）' };
+});
+
+ipcMain.handle('test-anthropic-connection', async (event, apiKey, apiEndpoint) => {
+  logger.info('Anthropic接続テスト', { endpoint: apiEndpoint || 'デフォルト' });
+  return { success: true, message: 'Anthropic APIに正常に接続できました（シミュレーション）' };
+});
+
+ipcMain.handle('test-azure-connection', async (event, apiKey, endpoint, deploymentName) => {
+  logger.info('Azure OpenAI接続テスト', { endpoint, deploymentName });
+  return { success: true, message: 'Azure OpenAI APIに正常に接続できました（シミュレーション）' };
+});
+
+ipcMain.handle('test-google-connection', async (event, projectId, location, keyFilePath) => {
+  logger.info('Google Vertex AI接続テスト', { projectId, location });
+  return { success: true, message: 'Google Vertex AIに正常に接続できました（シミュレーション）' };
+});
+
+ipcMain.handle('test-openrouter-connection', async (event, apiKey) => {
+  logger.info('OpenRouter接続テスト');
+  return { success: true, message: 'OpenRouter APIに正常に接続できました（シミュレーション）' };
+});
+
+ipcMain.handle('test-local-connection', async (event) => {
+  logger.info('ローカルモデル接続テスト');
+  return { success: true, message: 'ローカルモデルに正常に接続できました（シミュレーション）' };
 });

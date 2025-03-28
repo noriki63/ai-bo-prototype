@@ -18,181 +18,224 @@ const LogViewer = () => {
     error: null
   });
   
+  // API初期化状態の追跡
+  const [apiInitialized, setApiInitialized] = useState(false);
+  // 待機中フラグ
+  const [waitingForApi, setWaitingForApi] = useState(false);
+  
   // ログの直接読み込み (ipcRendererを使わず直接表示)
   const [directLog, setDirectLog] = useState([]);
   
   // Electron環境の検出と詳細レポート
   useEffect(() => {
-    checkElectronEnvironment();
-  }, []);
-
-  // 追加: 初期化時にelectronAPIをチェック
-  useEffect(() => {
-    // API検出の診断を実行
+    // 初期実行時にタイムスタンプログを追加
+    const timestamp = new Date().toISOString();
+    setDirectLog([`[${timestamp}] LogViewer: コンポーネント初期化`]);
+    
+    // APIの初期化チェックを開始
     checkElectronAPI();
   }, []);
 
-  // 追加: electronAPIの検出を直接チェックするヘルパー関数
+  // electronAPIの検出と初期化待機
   const checkElectronAPI = () => {
     console.log("========== ELECTRON API 診断 ==========");
-    // windowオブジェクトの存在確認
-    console.log("window存在:", typeof window !== 'undefined');
+    addDirectLog('INFO', 'Electron API診断開始');
     
-    // electronAPIの存在確認
-    if (typeof window !== 'undefined') {
-      console.log("electronAPI存在:", typeof window.electronAPI !== 'undefined');
-      
-      // electronAPI内の各APIをチェック
-      if (typeof window.electronAPI !== 'undefined') {
-        const api = window.electronAPI;
-        console.log("- checkAPI:", typeof api.checkAPI === 'function' ? "利用可能" : "未定義");
-        console.log("- logs:", typeof api.logs !== 'undefined' ? "利用可能" : "未定義");
-        
-        // checkAPIメソッドが存在する場合は呼び出してみる
-        if (typeof api.checkAPI === 'function') {
-          const result = api.checkAPI();
-          console.log("checkAPI結果:", result);
-        }
-        
-        // logs APIの詳細を確認
-        if (typeof api.logs !== 'undefined') {
-          const logsAPI = api.logs;
-          console.log("  - getLogContent:", typeof logsAPI.getLogContent === 'function' ? "利用可能" : "未定義");
-          console.log("  - getErrorLogContent:", typeof logsAPI.getErrorLogContent === 'function' ? "利用可能" : "未定義");
-          console.log("  - getLogFiles:", typeof logsAPI.getLogFiles === 'function' ? "利用可能" : "未定義");
-          console.log("  - setLogLevel:", typeof logsAPI.setLogLevel === 'function' ? "利用可能" : "未定義");
-          console.log("  - writeLog:", typeof logsAPI.writeLog === 'function' ? "利用可能" : "未定義");
+    // 初期化されているかどうか確認する関数
+    const checkInitialization = () => {
+      if (window && window.electronAPI) {
+        // APIの初期化状態確認メソッドを呼び出す（新API）
+        if (typeof window.electronAPI.isInitialized === 'function') {
+          const isInitialized = window.electronAPI.isInitialized();
+          console.log("electronAPI初期化状態:", isInitialized);
+          addDirectLog('DEBUG', `electronAPI.isInitialized()=${isInitialized}`);
+          
+          if (isInitialized) {
+            // API初期化完了
+            setApiInitialized(true);
+            setWaitingForApi(false);
+            setElectronStatus({
+              detected: true,
+              message: 'Electron API 初期化完了',
+              error: null
+            });
+            
+            // ログ機能テスト
+            testLogFunctions();
+            
+            // ログとファイル一覧を読み込む
+            loadLogs();
+            loadLogFiles();
+            return true;
+          }
+        } else {
+          // 従来の方法でのチェック
+          const hasLogs = window.electronAPI.logs && 
+                         typeof window.electronAPI.logs.getLogContent === 'function';
+          
+          // 直接APIでのチェック（preload.js修正後）
+          const hasDirectLogApi = typeof window.electronAPI.getLogContent === 'function';
+          
+          console.log("electronAPI.logs 存在:", hasLogs);
+          console.log("electronAPI.getLogContent 存在:", hasDirectLogApi);
+          addDirectLog('DEBUG', `logs API=${hasLogs}, 直接API=${hasDirectLogApi}`);
+          
+          if (hasLogs || hasDirectLogApi) {
+            // API利用可能
+            setApiInitialized(true);
+            setWaitingForApi(false);
+            setElectronStatus({
+              detected: true,
+              message: 'Electron API 利用可能',
+              error: null
+            });
+            
+            // ログ機能テスト
+            testLogFunctions();
+            
+            // ログとファイル一覧を読み込む
+            loadLogs();
+            loadLogFiles();
+            return true;
+          }
         }
       }
+      
+      return false;
+    };
+    
+    // API初期化を待機
+    if (!checkInitialization()) {
+      setWaitingForApi(true);
+      addDirectLog('INFO', 'Electron API初期化待機中...');
+      
+      // 定期的にAPI初期化をチェック
+      const intervalId = setInterval(() => {
+        if (checkInitialization()) {
+          // 初期化完了したら定期チェックを停止
+          clearInterval(intervalId);
+        }
+      }, 300); // 300ms間隔でチェック
+      
+      // 10秒後にタイムアウト
+      setTimeout(() => {
+        if (!apiInitialized) {
+          clearInterval(intervalId);
+          setWaitingForApi(false);
+          setElectronStatus({
+            detected: false,
+            message: 'Electron API初期化タイムアウト',
+            error: 'APIの初期化に10秒以上かかったため、クライアント側ログのみ表示します。'
+          });
+          addDirectLog('ERROR', 'Electron API初期化タイムアウト');
+        }
+      }, 10000);
     }
     
-    // 診断結果をディレクトログに追加
-    setDirectLog(prev => [
-      ...prev,
-      "[DIAG] Electron API診断を実行しました",
-      `[DIAG] window.electronAPI存在: ${typeof window !== 'undefined' && typeof window.electronAPI !== 'undefined'}`,
-      `[DIAG] window.electronAPI.logs存在: ${typeof window !== 'undefined' && typeof window.electronAPI !== 'undefined' && typeof window.electronAPI.logs !== 'undefined'}`
-    ]);
+    // 各種API存在確認の診断
+    if (window && window.electronAPI) {
+      // API構造を診断
+      const api = window.electronAPI;
+      const apiStructure = {
+        checkAPI: typeof api.checkAPI === 'function',
+        logs: typeof api.logs !== 'undefined',
+        getLogContent: typeof api.getLogContent === 'function',
+        getErrorLogContent: typeof api.getErrorLogContent === 'function',
+        getLogFiles: typeof api.getLogFiles === 'function',
+        writeLog: typeof api.writeLog === 'function'
+      };
+      
+      console.log("API構造診断:", apiStructure);
+      addDirectLog('DEBUG', `API構造: ${JSON.stringify(apiStructure)}`);
+      
+      // ログAPI構造の診断
+      if (api.logs) {
+        const logsStructure = {
+          getLogContent: typeof api.logs.getLogContent === 'function',
+          getErrorLogContent: typeof api.logs.getErrorLogContent === 'function', 
+          getLogFiles: typeof api.logs.getLogFiles === 'function',
+          writeLog: typeof api.logs.writeLog === 'function'
+        };
+        
+        console.log("logs API構造診断:", logsStructure);
+        addDirectLog('DEBUG', `logs構造: ${JSON.stringify(logsStructure)}`);
+      }
+    } else {
+      console.log("electronAPIが見つかりません");
+      addDirectLog('ERROR', 'electronAPIが見つかりません');
+      setElectronStatus({
+        detected: false,
+        message: 'Electron APIが検出できません',
+        error: 'window.electronAPIが未定義です'
+      });
+    }
     
     console.log("===================================");
   };
-
-  const generateFallbackLog = () => {
-    // クライアント側で生成したログエントリを返す
-    const timestamp = new Date().toISOString();
-    return [
-      `[${timestamp}] [FRONTEND] [INFO] LogViewer: フォールバックログが生成されました`,
-      `[${timestamp}] [FRONTEND] [INFO] Electron環境状態: ${JSON.stringify(electronStatus.details || {})}`,
-      `[${timestamp}] [FRONTEND] [INFO] ブラウザ情報: ${navigator.userAgent}`,
-      ...directLog
-    ].join('\n');
-  };
   
-  // Electron環境を詳細にチェックする関数
-  const checkElectronEnvironment = () => {
+  // ログ機能のテスト実行
+  const testLogFunctions = async () => {
     try {
-      console.log("Electron環境の詳細チェックを開始");
+      addDirectLog('INFO', 'ログ機能テスト開始');
       
-      // まず直接アクセスできるか試みる
-      checkElectronAPI();
-      
-      const checks = {
-        windowExists: !!window,
-        electronAPIExists: !!(window && window.electronAPI),
-        logsAPIExists: !!(window && window.electronAPI && window.electronAPI.logs),
-        getLogContentExists: !!(window && window.electronAPI && window.electronAPI.logs && 
-                             typeof window.electronAPI.logs.getLogContent === 'function'),
-        writeLogExists: !!(window && window.electronAPI && window.electronAPI.logs && 
-                        typeof window.electronAPI.logs.writeLog === 'function'),
-        processExists: !!(window && window.process),
-        processTypeExists: !!(window && window.process && window.process.type)
+      // 直接メソッドと従来メソッドを両方テスト
+      const testDirectGetLog = async () => {
+        if (window.electronAPI && typeof window.electronAPI.getLogContent === 'function') {
+          try {
+            const result = await window.electronAPI.getLogContent(10);
+            const success = typeof result === 'string';
+            addDirectLog('DEBUG', `直接getLogContentテスト: ${success ? '成功' : '失敗'}`);
+            return success;
+          } catch (error) {
+            addDirectLog('ERROR', `直接getLogContentテスト失敗: ${error.message}`);
+            return false;
+          }
+        }
+        return false;
       };
       
-      // API参照をデバッグ
-      if (window.electronAPI) {
-        console.log("electronAPI構造:", Object.keys(window.electronAPI));
-        if (window.electronAPI.logs) {
-          console.log("logs API構造:", Object.keys(window.electronAPI.logs));
-        } else {
-          console.log("logs APIが見つかりません");
+      const testNestedGetLog = async () => {
+        if (window.electronAPI && window.electronAPI.logs && 
+            typeof window.electronAPI.logs.getLogContent === 'function') {
+          try {
+            const result = await window.electronAPI.logs.getLogContent(10);
+            const success = typeof result === 'string';
+            addDirectLog('DEBUG', `従来getLogContentテスト: ${success ? '成功' : '失敗'}`);
+            return success;
+          } catch (error) {
+            addDirectLog('ERROR', `従来getLogContentテスト失敗: ${error.message}`);
+            return false;
+          }
         }
-      }
+        return false;
+      };
       
-      console.log("Electron環境チェック結果:", checks);
+      // 両方のメソッドをテスト
+      const directSuccess = await testDirectGetLog();
+      const nestedSuccess = await testNestedGetLog();
       
-      // ロガー経由でログを記録
-      logger.info('Electron環境チェック結果', checks);
-      
-      // Electron環境の状態を更新
-      const isElectronEnv = checks.logsAPIExists && checks.getLogContentExists;
-      setElectronStatus({
-        detected: isElectronEnv,
-        message: isElectronEnv 
-          ? 'Electron環境を正常に検出しました' 
-          : 'Electron環境が検出できません。クライアント側ログのみ表示します。',
-        error: null,
-        details: checks
-      });
-      
-      // DirectLogに情報を追加
-      const detailsText = Object.entries(checks)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join('\n');
-        
-      setDirectLog(prev => [
-        ...prev,
-        '[INFO] ログビューア起動',
-        `[INFO] Electron API状態: ${isElectronEnv ? '利用可能' : '利用不可'}`,
-        '[INFO] Electron環境チェック詳細:',
-        detailsText
-      ]);
-      
-      // ただし、Electron APIがなくてもgetSystemInfoだけは試してみる
-      if (window.electronAPI && typeof window.electronAPI.getSystemInfo === 'function') {
-        window.electronAPI.getSystemInfo()
-          .then(info => {
-            console.log("システム情報取得成功:", info);
-            setDirectLog(prev => [
-              ...prev,
-              '[DIAG] システム情報取得成功',
-              `[DIAG] プラットフォーム: ${info.platform}`,
-              `[DIAG] アーキテクチャ: ${info.arch}`
-            ]);
-          })
-          .catch(err => {
-            console.error("システム情報取得エラー:", err);
-          });
-      }
-      
-      // Electron環境が利用可能ならすぐにログを読み込み
-      if (isElectronEnv) {
-        loadLogs();
-        loadLogFiles();
+      if (directSuccess || nestedSuccess) {
+        addDirectLog('INFO', 'ログ機能テスト成功');
+      } else {
+        addDirectLog('ERROR', 'ログ機能テスト失敗');
       }
     } catch (error) {
-      console.error("Electron環境チェック中にエラー:", error);
-      setElectronStatus({
-        detected: false,
-        message: 'Electron環境チェック中にエラーが発生しました',
-        error: error.message
-      });
+      addDirectLog('ERROR', `ログ機能テスト中にエラー: ${error.message}`);
     }
+  };
+
+  // フォールバックログの生成
+  const generateFallbackLog = () => {
+    // クライアント側で生成したログエントリを返す
+    return directLog.join('\n');
   };
   
   // コンポーネントマウント時に実行
   useEffect(() => {
-    // テストログを生成
-    addDirectLog('INFO', 'ログビューアでテストログを生成');
-    
-    // 通常のログ読み込みも試行
-    if (electronStatus.detected) {
-      loadLogs();
-    }
-    
     // 定期更新設定
     if (refreshInterval) {
       const intervalId = setInterval(() => {
-        if (electronStatus.detected) {
+        if (apiInitialized) {
           loadLogs();
         }
         // 定期的なダミーログも追加
@@ -200,78 +243,114 @@ const LogViewer = () => {
       }, refreshInterval * 1000);
       return () => clearInterval(intervalId);
     }
-  }, [activeTab, refreshInterval, lines, electronStatus.detected]);
+  }, [activeTab, refreshInterval, lines, apiInitialized]);
   
   // 直接ログを追加する関数
   const addDirectLog = (level, message, data = null) => {
     const timestamp = new Date().toISOString();
-    const logEntry = `[${timestamp}] [${level}] ${message} ${data ? JSON.stringify(data) : ''}`;
+    const dataStr = data ? JSON.stringify(data) : '';
+    const logEntry = `[${timestamp}] [${level}] ${message} ${dataStr}`.trim();
     
     setDirectLog(prev => {
       const newLogs = [...prev, logEntry];
-      // 最大100行まで保持
-      if (newLogs.length > 100) {
-        return newLogs.slice(-100);
+      // 最大1000行まで保持
+      if (newLogs.length > 1000) {
+        return newLogs.slice(-1000);
       }
       return newLogs;
     });
     
     // 実際にロガーも使用
-    logger[level.toLowerCase()](message, data);
+    if (level === 'DEBUG') logger.debug(message, data);
+    else if (level === 'INFO') logger.info(message, data);
+    else if (level === 'WARN') logger.warn(message, data);
+    else if (level === 'ERROR') logger.error(message, data);
+    else logger.info(message, data);
   };
-  
-  // ログ一覧の取得
-  useEffect(() => {
-    if (electronStatus.detected) {
-      loadLogFiles();
-    }
-  }, [electronStatus.detected]);
   
   // ログコンテンツの読み込み
   const loadLogs = async () => {
-    if (!electronStatus.detected) {
+    if (!apiInitialized) {
       setLogContent(generateFallbackLog());
-      setErrorLogContent('Electron環境が検出できないため、エラーログは利用できません。');
+      setErrorLogContent('Electron APIが初期化されていないため、エラーログは利用できません。');
       return;
     }
     
     setIsLoading(true);
-    console.log("ログ読み込み処理を開始します");
     addDirectLog('DEBUG', 'ログ読み込み処理開始');
     
     try {
       if (activeTab === 'normal') {
-        console.log(`通常ログを${lines}行取得します`);
-        try {
-          console.log("window.electronAPI.logs:", window.electronAPI.logs);
-          console.log("window.electronAPI.logs.getLogContent:", window.electronAPI.logs.getLogContent);
-          const content = await window.electronAPI.logs.getLogContent(lines);
-          console.log("取得したログ内容の長さ:", content?.length || 0);
-          setLogContent(content || 'ログは空です。');
-          addDirectLog('INFO', 'ログ読み込み成功');
-        } catch (error) {
-          console.error("getLogContent呼び出しエラー:", error);
-          setLogContent(`ログ取得中にエラーが発生しました: ${error.message}`);
-          addDirectLog('ERROR', 'ログ読み込み失敗', { error: error.message });
+        addDirectLog('DEBUG', `通常ログを${lines}行取得します`);
+        
+        // 直接メソッドを試す
+        if (window.electronAPI && typeof window.electronAPI.getLogContent === 'function') {
+          try {
+            const content = await window.electronAPI.getLogContent(lines);
+            setLogContent(content || 'ログは空です。');
+            addDirectLog('INFO', 'ログ読み込み成功（直接API）');
+            setIsLoading(false);
+            return;
+          } catch (error) {
+            addDirectLog('ERROR', `直接APIでのログ読み込み失敗: ${error.message}`);
+            // 従来メソッドでリトライ
+          }
+        }
+        
+        // 従来メソッドを試す
+        if (window.electronAPI && window.electronAPI.logs && 
+            typeof window.electronAPI.logs.getLogContent === 'function') {
+          try {
+            const content = await window.electronAPI.logs.getLogContent(lines);
+            setLogContent(content || 'ログは空です。');
+            addDirectLog('INFO', 'ログ読み込み成功（従来API）');
+          } catch (error) {
+            addDirectLog('ERROR', `従来APIでのログ読み込み失敗: ${error.message}`);
+            setLogContent(`ログ取得中にエラーが発生しました: ${error.message}\n\n${generateFallbackLog()}`);
+          }
+        } else {
+          // どちらの方法も使えない場合
+          setLogContent(generateFallbackLog());
+          addDirectLog('WARN', 'ログ読み込み機能が利用できないためフォールバック');
         }
       } else if (activeTab === 'error') {
-        console.log(`エラーログを${lines}行取得します`);
-        try {
-          const content = await window.electronAPI.logs.getErrorLogContent(lines);
-          console.log("取得したエラーログ内容の長さ:", content?.length || 0);
-          setErrorLogContent(content || 'エラーログは空です。');
-          addDirectLog('INFO', 'エラーログ読み込み成功');
-        } catch (error) {
-          console.error("getErrorLogContent呼び出しエラー:", error);
-          setErrorLogContent(`エラーログ取得中にエラーが発生しました: ${error.message}`);
-          addDirectLog('ERROR', 'エラーログ読み込み失敗', { error: error.message });
+        addDirectLog('DEBUG', `エラーログを${lines}行取得します`);
+        
+        // 直接メソッドを試す
+        if (window.electronAPI && typeof window.electronAPI.getErrorLogContent === 'function') {
+          try {
+            const content = await window.electronAPI.getErrorLogContent(lines);
+            setErrorLogContent(content || 'エラーログは空です。');
+            addDirectLog('INFO', 'エラーログ読み込み成功（直接API）');
+            setIsLoading(false);
+            return;
+          } catch (error) {
+            addDirectLog('ERROR', `直接APIでのエラーログ読み込み失敗: ${error.message}`);
+            // 従来メソッドでリトライ
+          }
+        }
+        
+        // 従来メソッドを試す
+        if (window.electronAPI && window.electronAPI.logs && 
+            typeof window.electronAPI.logs.getErrorLogContent === 'function') {
+          try {
+            const content = await window.electronAPI.logs.getErrorLogContent(lines);
+            setErrorLogContent(content || 'エラーログは空です。');
+            addDirectLog('INFO', 'エラーログ読み込み成功（従来API）');
+          } catch (error) {
+            addDirectLog('ERROR', `従来APIでのエラーログ読み込み失敗: ${error.message}`);
+            setErrorLogContent(`エラーログ取得中にエラーが発生しました: ${error.message}`);
+          }
+        } else {
+          // どちらの方法も使えない場合
+          setErrorLogContent('エラーログ機能が利用できません。');
+          addDirectLog('WARN', 'エラーログ読み込み機能が利用できません');
         }
       }
     } catch (error) {
-      console.error('ログ読み込みエラー詳細:', error);
-      addDirectLog('ERROR', 'ログ読み込み失敗', { error: error.message });
+      addDirectLog('ERROR', `ログ読み込み処理エラー: ${error.message}`);
       if (activeTab === 'normal') {
-        setLogContent(`ログの読み込みに失敗しました: ${error.message}`);
+        setLogContent(`ログの読み込みに失敗しました: ${error.message}\n\n${generateFallbackLog()}`);
       } else {
         setErrorLogContent(`エラーログの読み込みに失敗しました: ${error.message}`);
       }
@@ -282,19 +361,45 @@ const LogViewer = () => {
   
   // ログファイル一覧の読み込み
   const loadLogFiles = async () => {
-    if (!electronStatus.detected) {
+    if (!apiInitialized) {
       return;
     }
     
     try {
       addDirectLog('DEBUG', 'ログファイル一覧取得開始');
-      const files = await window.electronAPI.logs.getLogFiles();
-      console.log(`${files.length}個のログファイルを取得しました`);
-      setLogFiles(files);
-      addDirectLog('INFO', 'ログファイル一覧取得成功', { count: files.length });
+      
+      // 直接メソッドを試す
+      if (window.electronAPI && typeof window.electronAPI.getLogFiles === 'function') {
+        try {
+          const files = await window.electronAPI.getLogFiles();
+          setLogFiles(files);
+          addDirectLog('INFO', 'ログファイル一覧取得成功（直接API）', { count: files.length });
+          return;
+        } catch (error) {
+          addDirectLog('ERROR', `直接APIでのログファイル一覧取得失敗: ${error.message}`);
+          // 従来メソッドでリトライ
+        }
+      }
+      
+      // 従来メソッドを試す
+      if (window.electronAPI && window.electronAPI.logs && 
+          typeof window.electronAPI.logs.getLogFiles === 'function') {
+        try {
+          const files = await window.electronAPI.logs.getLogFiles();
+          setLogFiles(files);
+          addDirectLog('INFO', 'ログファイル一覧取得成功（従来API）', { count: files.length });
+        } catch (error) {
+          addDirectLog('ERROR', `従来APIでのログファイル一覧取得失敗: ${error.message}`);
+          setLogFiles([]);
+        }
+      } else {
+        // どちらの方法も使えない場合
+        addDirectLog('WARN', 'ログファイル一覧機能が利用できません');
+        setLogFiles([]);
+      }
     } catch (error) {
-      console.error('ログファイル一覧の取得に失敗しました:', error);
-      addDirectLog('ERROR', 'ログファイル一覧取得失敗', { error: error.message });
+      addDirectLog('ERROR', `ログファイル一覧取得エラー: ${error.message}`);
+      setLogFiles([]);
     }
   };
   
@@ -314,13 +419,27 @@ const LogViewer = () => {
     const level = e.target.value;
     logger.setLogLevel(level);
     addDirectLog('INFO', `ログレベルを${level}に変更しました`);
+    
+    // 直接メソッドを試す
+    if (window.electronAPI && typeof window.electronAPI.setLogLevel === 'function') {
+      window.electronAPI.setLogLevel(level)
+        .then(() => addDirectLog('DEBUG', 'ログレベル設定成功（直接API）'))
+        .catch(err => addDirectLog('ERROR', `ログレベル設定エラー（直接API）: ${err.message}`));
+    } 
+    // 従来メソッドを試す
+    else if (window.electronAPI && window.electronAPI.logs && 
+             typeof window.electronAPI.logs.setLogLevel === 'function') {
+      window.electronAPI.logs.setLogLevel(level)
+        .then(() => addDirectLog('DEBUG', 'ログレベル設定成功（従来API）'))
+        .catch(err => addDirectLog('ERROR', `ログレベル設定エラー（従来API）: ${err.message}`));
+    }
   };
   
   // 手動更新
   const handleRefresh = () => {
     addDirectLog('INFO', '手動更新実行');
     loadLogs();
-    if (electronStatus.detected) {
+    if (apiInitialized) {
       loadLogFiles();
     }
   };
@@ -328,7 +447,7 @@ const LogViewer = () => {
   // 環境状態再チェック
   const recheckEnvironment = () => {
     addDirectLog('INFO', 'Electron環境を再チェックします');
-    checkElectronEnvironment();
+    checkElectronAPI();
   };
   
   // テストログ生成
@@ -337,12 +456,25 @@ const LogViewer = () => {
     addDirectLog('INFO', 'テスト情報ログ', { source: 'LogViewer', test: true });
     addDirectLog('WARN', 'テスト警告ログ', { source: 'LogViewer', test: true });
     addDirectLog('ERROR', 'テストエラーログ', { source: 'LogViewer', test: true });
-    console.log('テストログを生成しました');
+    
+    // 直接メソッドでもログを書き込む
+    if (window.electronAPI && typeof window.electronAPI.writeLog === 'function') {
+      window.electronAPI.writeLog('INFO', 'テストログ（直接API）', '{"test":true}')
+        .then(() => addDirectLog('DEBUG', 'テストログ書き込み成功（直接API）'))
+        .catch(err => addDirectLog('ERROR', `テストログ書き込みエラー（直接API）: ${err.message}`));
+    } 
+    // 従来メソッドでもログを書き込む
+    else if (window.electronAPI && window.electronAPI.logs && 
+             typeof window.electronAPI.logs.writeLog === 'function') {
+      window.electronAPI.logs.writeLog('INFO', 'テストログ（従来API）', '{"test":true}')
+        .then(() => addDirectLog('DEBUG', 'テストログ書き込み成功（従来API）'))
+        .catch(err => addDirectLog('ERROR', `テストログ書き込みエラー（従来API）: ${err.message}`));
+    }
     
     // すぐにログを再読み込み
     setTimeout(() => {
       loadLogs();
-      if (electronStatus.detected) {
+      if (apiInitialized) {
         loadLogFiles();
       }
     }, 500);
@@ -368,9 +500,10 @@ const LogViewer = () => {
       
       {/* Electron環境状態表示 */}
       <div className="electron-status">
-        <div className={`status-indicator ${electronStatus.detected ? 'success' : 'error'}`}>
+        <div className={`status-indicator ${apiInitialized ? 'success' : 'error'}`}>
           {electronStatus.message}
           {electronStatus.error && <div className="error-details">{electronStatus.error}</div>}
+          {waitingForApi && <div className="loading-indicator">API初期化を待機中...</div>}
         </div>
         <button onClick={recheckEnvironment} className="recheck-button">
           環境再チェック
@@ -435,7 +568,7 @@ const LogViewer = () => {
           </button>
           <button 
             className={activeTab === 'files' ? 'active' : ''} 
-            onClick={() => { setActiveTab('files'); if (electronStatus.detected) loadLogFiles(); }}
+            onClick={() => { setActiveTab('files'); if (apiInitialized) loadLogFiles(); }}
           >
             ログファイル
           </button>
@@ -457,7 +590,7 @@ const LogViewer = () => {
         
         {activeTab === 'files' && (
           <div className="log-files">
-            {electronStatus.detected ? (
+            {apiInitialized ? (
               <table>
                 <thead>
                   <tr>
