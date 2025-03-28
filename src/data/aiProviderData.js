@@ -45,7 +45,8 @@ export const AI_PROVIDERS = [
     { value: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
     { value: 'gpt-4-32k', name: 'GPT-4 32k' },
     { value: 'gpt-35-turbo', name: 'GPT-3.5 Turbo' },
-    { value: 'gpt-35-turbo-16k', name: 'GPT-3.5 Turbo 16k' }
+    { value: 'gpt-35-turbo-16k', name: 'GPT-3.5 Turbo 16k' },
+    { value: 'o3-mini', name: 'o3-mini' }
   ];
   
   export const OPENROUTER_MODELS = [

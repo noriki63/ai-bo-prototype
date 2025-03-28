@@ -552,3 +552,81 @@
     padding: 15px;
   }
 }
+
+/* APIモードインジケーター */
+.api-mode-indicator {
+  padding: 8px 12px;
+  margin-bottom: 15px;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.api-mode {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.simulation-mode {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.mode-toggle-button {
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  background-color: rgba(0, 0, 0, 0.1);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.api-mode .mode-toggle-button:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.simulation-mode .mode-toggle-button:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* エラーカード */
+.error-card {
+  background-color: #f8d7da;
+  border-left: 4px solid #dc3545;
+  margin-bottom: 20px;
+}
+
+.error-card h3 {
+  color: #721c24;
+}
+
+.error-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.retry-button {
+  background-color: #17a2b8;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.fallback-button {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.expert-status .error {
+  color: #dc3545;
+}

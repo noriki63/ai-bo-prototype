@@ -2,8 +2,12 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProjectContext from '../context/ProjectContext';
 import { expertAIs, mockQuestions, mockRequirements } from '../data/mockData';
-import { processWithExpertAIs, processWithSummarizerAI } from '../services/aiService';
-import logger from '../utils/frontendLogger'; // ロガーをインポート
+import { 
+  processWithExpertAIs, 
+  processWithSummarizerAI, 
+  processUserAnswers 
+} from '../services/aiService';
+import logger from '../utils/frontendLogger';
 import './RequirementsPhase.css';
 
 // 信頼度のラベルマッピング
@@ -57,6 +61,7 @@ const RequirementsPhase = () => {
   const [consensusScore, setConsensusScore] = useState(0);
   
   // 状態管理
+  const [isLoading, setIsLoading] = useState(true);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [experts, setExperts] = useState([]);
   const [userQuestions, setUserQuestions] = useState([]);
@@ -68,7 +73,8 @@ const RequirementsPhase = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previousRequirements, setPreviousRequirements] = useState([]);
   const [apiError, setApiError] = useState(null);
-  const [useRealApi, setUseRealApi] = useState(false); // APIを使用するかのフラグ（デフォルトはfalse）
+  const [useRealApi, setUseRealApi] = useState(true); // APIを使用するフラグ（デフォルトはtrue）
+  const [retryCount, setRetryCount] = useState(0); // 再試行カウンター
   
   // モーダル制御
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -91,7 +97,6 @@ const RequirementsPhase = () => {
           }
         } catch (error) {
           logger.error('専門家AI設定の読み込みエラー (Electron)', error);
-          console.error('専門家AI設定の読み込みエラー:', error);
         }
       } else {
         const savedSettings = localStorage.getItem('aiBoSettings');
@@ -104,7 +109,6 @@ const RequirementsPhase = () => {
             }
           } catch (error) {
             logger.error('専門家AI設定の解析エラー', error);
-            console.error('専門家AI設定の解析エラー:', error);
           }
         }
       }
@@ -118,10 +122,13 @@ const RequirementsPhase = () => {
           const customExperts = requirementsExperts.experts.map(expert => ({
             id: expert.id,
             name: expert.name,
+            description: expert.description,
             icon: expertIcons[expert.iconType] || 'user',
             status: 'processing',
             expertise: expert.expertise,
-            model: expert.model
+            provider: expert.provider,
+            model: expert.model,
+            providerSettings: expert.providerSettings
           }));
           
           setExperts(customExperts);
@@ -145,19 +152,114 @@ const RequirementsPhase = () => {
     };
     
     loadExpertSettings().then(() => {
-      logger.debug('専門家AI分析シミュレーション開始');
-      // 専門家AIの分析シミュレーション
-      simulateExpertAnalysis();
+      logger.debug('専門家AI分析開始');
+      
+      if (useRealApi) {
+        // 実際のAPIを使用
+        runExpertAnalysis();
+      } else {
+        // シミュレーション
+        simulateExpertAnalysis();
+      }
     });
-    
-    return () => {
-      // クリーンアップ
-    };
-  }, []);
+  }, [retryCount]); // retryCountが変わると再実行
   
-  // 専門家AIの分析シミュレーション
+  // 実際のAPI呼び出しによる専門家AI分析
+  const runExpertAnalysis = async () => {
+    try {
+      logger.info('実際のAI APIを使用した専門家AI分析開始', {
+        expertCount: experts.length,
+        projectSpec: project.specification?.substring(0, 50) + "...",
+      });
+      
+      setApiError(null);
+      setIsLoading(true);
+      
+      // 専門家AIの一部をエラー状態に設定（ロード表示のため）
+      setExperts(prev => prev.map(expert => ({ ...expert, status: 'processing' })));
+      
+      // 専門家AI分析を実行
+      const expertResults = await processWithExpertAIs(
+        project.specification,
+        experts,
+        {
+          iteration: iterationCount + 1,
+          previousRequirements: previousRequirements,
+          additionalInput: additionalRequirements,
+          projectName: project.name
+        }
+      );
+      
+      // 専門家AIの状態を更新（成功/エラー）
+      const updatedExperts = experts.map(expert => {
+        const result = expertResults.find(r => r.expertId === expert.id);
+        return {
+          ...expert,
+          status: result?.error ? 'error' : 'completed'
+        };
+      });
+      setExperts(updatedExperts);
+      
+      // まとめAIの処理を開始
+      await processSummarizerAI(expertResults);
+      
+    } catch (error) {
+      setApiError(`専門家AI分析エラー: ${error.message}`);
+      logger.error('専門家AI分析エラー', error);
+      setIsLoading(false);
+    }
+  };
+  
+  // まとめAIによる統合処理
+  const processSummarizerAI = async (expertResults) => {
+    try {
+      logger.info('まとめAI処理開始', { expertResultsCount: expertResults.length });
+      setProcessingStep('summarization');
+      
+      // まとめAIによる統合処理
+      const summaryResult = await processWithSummarizerAI(
+        expertResults,
+        {
+          projectName: project.name,
+          iteration: iterationCount + 1,
+          previousRequirements: previousRequirements
+        }
+      );
+      
+      // 質問と自動回答を設定
+      const userRequiredQuestions = summaryResult.questions?.user_required_questions || [];
+      const autoAnsweredQuestions = summaryResult.questions?.auto_answered_questions || [];
+      
+      setUserQuestions(userRequiredQuestions);
+      setAutoAnswers(autoAnsweredQuestions);
+      
+      // 一致度を設定
+      const consensusValue = summaryResult.consensus_evaluation?.score || 0;
+      setConsensusScore(consensusValue);
+      setConsensusReached(consensusValue >= 0.8); // 80%以上で一致とみなす
+      
+      setProcessingStep('questions');
+      
+      // 繰り返し回数を更新
+      setIterationCount(prev => prev + 1);
+      
+      logger.info('まとめAI処理完了', {
+        userQuestions: userRequiredQuestions.length,
+        autoAnswers: autoAnsweredQuestions.length,
+        consensusScore: consensusValue
+      });
+      
+    } catch (error) {
+      setApiError(`まとめAI処理エラー: ${error.message}`);
+      logger.error('まとめAI処理エラー', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // 専門家AIの分析シミュレーション（APIを使わない場合のフォールバック）
   const simulateExpertAnalysis = () => {
-    logger.info('専門家AI分析プロセス開始', { expertCount: experts.length });
+    logger.info('専門家AI分析プロセスのシミュレーション開始', { expertCount: experts.length });
     const expertDelay = 1000; // 1秒
     
     experts.forEach((expert, index) => {
@@ -193,6 +295,8 @@ const RequirementsPhase = () => {
               
               // 繰り返し回数を更新
               setIterationCount(prev => prev + 1);
+              
+              setIsLoading(false);
             }, 2000);
           }, 500);
         }
@@ -222,6 +326,9 @@ const RequirementsPhase = () => {
       setPreviousRequirements([]);
     }
     
+    // 追加入力を保存
+    setAdditionalRequirements(additionalInput);
+    
     // 状態をリセット
     setUserQuestions([]);
     setAutoAnswers([]);
@@ -229,63 +336,71 @@ const RequirementsPhase = () => {
     setProcessingStep('expert-analysis');
     setExperts(prev => prev.map(expert => ({ ...expert, status: 'processing' })));
     
-    // 専門家AIの分析を再実行（シミュレーション）
-    const simulateNextIteration = () => {
-      logger.debug('次のイテレーションシミュレーション開始');
-      const expertDelay = 800; // 少し早く
-      
-      experts.forEach((expert, index) => {
-        setTimeout(() => {
-          logger.debug(`イテレーション専門家AI分析完了: ${expert.name}`);
-          setExperts(prev => {
-            const updated = [...prev];
-            const expertIndex = updated.findIndex(e => e.id === expert.id);
-            if (expertIndex !== -1) {
-              updated[expertIndex] = { ...updated[expertIndex], status: 'completed' };
-            }
-            return updated;
-          });
-          
-          if (index === experts.length - 1) {
-            setTimeout(() => {
-              logger.info('全イテレーション専門家AI分析完了、まとめAI処理開始');
-              setProcessingStep('summarization');
-              
-              setTimeout(() => {
-                logger.info('イテレーションまとめAI処理完了');
-                // 2回目以降は質問が減少するシミュレーション
-                if (iterationCount >= 2) {
-                  setUserQuestions(mockQuestions.userRequired.slice(0, 1));
-                  logger.debug('質問数の減少: 1問');
-                } else {
-                  setUserQuestions(mockQuestions.userRequired.slice(0, 2));
-                  logger.debug('質問数の減少: 2問');
-                }
-                setAutoAnswers(mockQuestions.autoAnswered);
-                setProcessingStep('questions');
-                
-                // イテレーション1回目の場合、追加入力に基づく要件を生成（シミュレーション）
-                if (iterationCount === 0 && additionalInput) {
-                  // 追加入力に基づく要件を表示するためのログ（デバッグ用）
-                  logger.debug('追加入力に基づく要件生成', { additionalInput });
-                }
-                
-                // 一致度を更新
-                const consensus = calculateConsensus();
-                logger.debug(`イテレーション一致度更新: ${Math.round(consensus * 100)}%`);
-                setConsensusScore(consensus);
-                setConsensusReached(consensus >= 0.8);
-                
-                // 繰り返し回数を更新
-                setIterationCount(prev => prev + 1);
-              }, 1500);
-            }, 500);
-          }
-        }, expertDelay * (index + 1));
-      });
-    };
+    if (useRealApi) {
+      // 実際のAPIを使用
+      runExpertAnalysis();
+    } else {
+      // シミュレーション
+      simulateNextIteration();
+    }
+  };
+  
+  // 次のイテレーションのシミュレーション（API未使用時）
+  const simulateNextIteration = () => {
+    logger.debug('次のイテレーションシミュレーション開始');
+    const expertDelay = 800; // 少し早く
     
-    simulateNextIteration();
+    experts.forEach((expert, index) => {
+      setTimeout(() => {
+        logger.debug(`イテレーション専門家AI分析完了: ${expert.name}`);
+        setExperts(prev => {
+          const updated = [...prev];
+          const expertIndex = updated.findIndex(e => e.id === expert.id);
+          if (expertIndex !== -1) {
+            updated[expertIndex] = { ...updated[expertIndex], status: 'completed' };
+          }
+          return updated;
+        });
+        
+        if (index === experts.length - 1) {
+          setTimeout(() => {
+            logger.info('全イテレーション専門家AI分析完了、まとめAI処理開始');
+            setProcessingStep('summarization');
+            
+            setTimeout(() => {
+              logger.info('イテレーションまとめAI処理完了');
+              // 2回目以降は質問が減少するシミュレーション
+              if (iterationCount >= 2) {
+                setUserQuestions(mockQuestions.userRequired.slice(0, 1));
+                logger.debug('質問数の減少: 1問');
+              } else {
+                setUserQuestions(mockQuestions.userRequired.slice(0, 2));
+                logger.debug('質問数の減少: 2問');
+              }
+              setAutoAnswers(mockQuestions.autoAnswered);
+              setProcessingStep('questions');
+              
+              // イテレーション1回目の場合、追加入力に基づく要件を生成（シミュレーション）
+              if (iterationCount === 0 && additionalRequirements) {
+                // 追加入力に基づく要件を表示するためのログ（デバッグ用）
+                logger.debug('追加入力に基づく要件生成', { additionalRequirements });
+              }
+              
+              // 一致度を更新
+              const consensus = calculateConsensus();
+              logger.debug(`イテレーション一致度更新: ${Math.round(consensus * 100)}%`);
+              setConsensusScore(consensus);
+              setConsensusReached(consensus >= 0.8);
+              
+              // 繰り返し回数を更新
+              setIterationCount(prev => prev + 1);
+              
+              setIsLoading(false);
+            }, 1500);
+          }, 500);
+        }
+      }, expertDelay * (index + 1));
+    });
   };
   
   // 回答の変更ハンドラ
@@ -321,7 +436,7 @@ const RequirementsPhase = () => {
   };
   
   // 質問への回答を送信
-  const submitAnswers = () => {
+  const submitAnswers = async () => {
     // すべての質問に回答されているか確認
     const allAnswered = userQuestions.every(q => answers[q.id]);
     
@@ -334,6 +449,52 @@ const RequirementsPhase = () => {
     logger.info('ユーザー質問への回答を送信', { answerCount: Object.keys(answers).length });
     setIsSubmitting(true);
     
+    if (useRealApi) {
+      try {
+        // 質問を回答済みに更新
+        const answeredQuestions = userQuestions.map(q => ({
+          ...q,
+          answered: true,
+          answer: answers[q.id]
+        }));
+        
+        // 自動回答済みの質問も含める
+        const allQuestions = [
+          ...answeredQuestions,
+          ...autoAnswers
+        ];
+        
+        setProcessingStep('requirements-generation');
+        
+        // 回答処理と要件生成
+        const requirementsResult = await processUserAnswers(
+          allQuestions,
+          previousRequirements,
+          { 
+            projectName: project.name,
+            iteration: iterationCount 
+          }
+        );
+        
+        // 結果を設定
+        setRequirements(requirementsResult.requirements || []);
+        setProcessingStep('requirements-review');
+        setAnalysisComplete(true);
+        
+      } catch (error) {
+        setApiError(`要件生成エラー: ${error.message}`);
+        logger.error('要件生成エラー', error);
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      // シミュレーション
+      simulateRequirementsGeneration();
+    }
+  };
+  
+  // 要件生成のシミュレーション（APIを使わない場合）
+  const simulateRequirementsGeneration = () => {
     // 回答の処理をシミュレーション
     setTimeout(() => {
       // 質問を回答済みに更新
@@ -461,8 +622,7 @@ const RequirementsPhase = () => {
     // 次のイテレーションを開始（要件を保持）
     runNextIteration(true, additionalRequirements);
     
-    // 入力フィールドをクリア
-    setAdditionalRequirements('');
+    // 入力フィールドをクリア（状態は残す）
   };
   
   // 設定モーダルの表示/非表示
@@ -479,6 +639,19 @@ const RequirementsPhase = () => {
       useRealApi
     });
     setShowSettingsModal(false);
+  };
+  
+  // エラー時の再試行
+  const handleRetry = () => {
+    logger.info('API呼び出しを再試行');
+    setApiError(null);
+    setRetryCount(retryCount + 1);
+  };
+  
+  // APIフラグを切り替える
+  const toggleApiMode = () => {
+    logger.info(`API呼び出しモードを切り替え: ${!useRealApi ? '実際のAPI' : 'シミュレーション'}`);
+    setUseRealApi(!useRealApi);
   };
   
   return (
@@ -507,12 +680,41 @@ const RequirementsPhase = () => {
         </button>
       </div>
       
+      {/* API モードインジケーター */}
+      <div className={`api-mode-indicator ${useRealApi ? 'api-mode' : 'simulation-mode'}`}>
+        <span className="mode-label">モード: {useRealApi ? '実際のAI API' : 'シミュレーション'}</span>
+        <button 
+          onClick={toggleApiMode} 
+          className="mode-toggle-button"
+          disabled={isLoading || isSubmitting}
+        >
+          {useRealApi ? 'シミュレーションに切り替え' : '実際のAPIに切り替え'}
+        </button>
+      </div>
+      
       {/* API エラー表示 */}
       {apiError && (
-        <div className="api-error-card card">
+        <div className="error-card card">
           <h3>エラーが発生しました</h3>
           <p>{apiError}</p>
-          <p>シミュレーションモードで続行します。</p>
+          <div className="error-actions">
+            <button 
+              onClick={handleRetry}
+              className="retry-button"
+            >
+              再試行
+            </button>
+            <button 
+              onClick={() => {
+                setUseRealApi(false);
+                setApiError(null);
+                simulateExpertAnalysis();
+              }}
+              className="fallback-button"
+            >
+              シミュレーションに切り替え
+            </button>
+          </div>
         </div>
       )}
       
@@ -543,6 +745,8 @@ const RequirementsPhase = () => {
                 <div className="expert-status">
                   {expert.status === 'processing' ? (
                     <span className="processing">分析中...</span>
+                  ) : expert.status === 'error' ? (
+                    <span className="error">エラー</span>
                   ) : (
                     <span className="completed">分析完了</span>
                   )}
@@ -577,7 +781,7 @@ const RequirementsPhase = () => {
                       <strong>質問{question.id.substring(1)}:</strong> {question.question}
                     </span>
                     <span className="expert-badge">
-                      {experts.find(e => e.id === question.expertId)?.name}
+                      {experts.find(e => e.id === question.expertId)?.name || '専門家'}
                     </span>
                   </div>
                   
@@ -611,69 +815,75 @@ const RequirementsPhase = () => {
           {/* 自動回答済みの質問 */}
           <div className="question-group auto-answered">
             <h4>自動回答済み:</h4>
-            {autoAnswers.map(answer => (
-              <div key={answer.id} className="question-item">
-                <div className="question-header">
-                  <span className="question-text">
-                    <strong>質問{answer.id.substring(1)}:</strong> {answer.question}
-                  </span>
-                  <span className="expert-badge">
-                    {experts.find(e => e.id === answer.expertId)?.name}
-                  </span>
-                </div>
-                
-                <div className="answer-section">
-                  {editingAutoAnswer === answer.id ? (
-                    <div className="edit-answer">
-                      <textarea
-                        value={answer.editValue || answer.answer}
-                        onChange={(e) => setAutoAnswers(prev => 
-                          prev.map(a => a.id === answer.id ? { ...a, editValue: e.target.value } : a)
-                        )}
-                      />
-                      <div className="edit-buttons">
-                        <button 
-                          onClick={() => updateAutoAnswer(answer.id, answer.editValue || answer.answer)}
-                          className="success"
-                        >
-                          保存
-                        </button>
-                        <button 
-                          onClick={() => toggleEditAutoAnswer(null)}
-                          className="secondary"
-                        >
-                          キャンセル
-                        </button>
+            {autoAnswers.length > 0 ? (
+              autoAnswers.map(answer => (
+                <div key={answer.id} className="question-item">
+                  <div className="question-header">
+                    <span className="question-text">
+                      <strong>質問{answer.id.substring(1)}:</strong> {answer.question}
+                    </span>
+                    <span className="expert-badge">
+                      {experts.find(e => e.id === answer.expertId)?.name || '専門家'}
+                    </span>
+                  </div>
+                  
+                  <div className="answer-section">
+                    {editingAutoAnswer === answer.id ? (
+                      <div className="edit-answer">
+                        <textarea
+                          value={answer.editValue || answer.answer}
+                          onChange={(e) => setAutoAnswers(prev => 
+                            prev.map(a => a.id === answer.id ? { ...a, editValue: e.target.value } : a)
+                          )}
+                        />
+                        <div className="edit-buttons">
+                          <button 
+                            onClick={() => updateAutoAnswer(answer.id, answer.editValue || answer.answer)}
+                            className="success"
+                          >
+                            保存
+                          </button>
+                          <button 
+                            onClick={() => toggleEditAutoAnswer(null)}
+                            className="secondary"
+                          >
+                            キャンセル
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="answer-display">
-                        <strong>回答:</strong> {answer.answer}
-                        <span className={`confidence-badge ${answer.confidence.toLowerCase()}`}>
-                          信頼度: {confidenceLabels[answer.confidence]}
-                        </span>
-                        {answer.userEdited && (
-                          <span className="user-edited-badge">
-                            編集済み
+                    ) : (
+                      <>
+                        <div className="answer-display">
+                          <strong>回答:</strong> {answer.answer}
+                          <span className={`confidence-badge ${answer.confidence.toLowerCase()}`}>
+                            信頼度: {confidenceLabels[answer.confidence]}
                           </span>
-                        )}
-                      </div>
-                      <div className="answer-rationale">
-                        <strong>根拠:</strong> {answer.rationale}
-                      </div>
-                      <button 
-                        onClick={() => toggleEditAutoAnswer(answer.id)}
-                        className="edit-button secondary"
-                        disabled={isSubmitting}
-                      >
-                        回答を編集
-                      </button>
-                    </>
-                  )}
+                          {answer.userEdited && (
+                            <span className="user-edited-badge">
+                              編集済み
+                            </span>
+                          )}
+                        </div>
+                        <div className="answer-rationale">
+                          <strong>根拠:</strong> {answer.rationale}
+                        </div>
+                        <button 
+                          onClick={() => toggleEditAutoAnswer(answer.id)}
+                          className="edit-button secondary"
+                          disabled={isSubmitting}
+                        >
+                          回答を編集
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="no-questions-message">
+                自動回答済みの質問はありません。
               </div>
-            ))}
+            )}
           </div>
           
           {/* 質問回答ボタン */}
@@ -839,8 +1049,11 @@ const RequirementsPhase = () => {
                     checked={useRealApi}
                     onChange={(e) => setUseRealApi(e.target.checked)}
                   />
-                  実際のAPIを使用する（動作確認中）
+                  実際のAPIを使用する
                 </label>
+                <div className="field-hint">
+                  オフにするとAI呼び出しをシミュレーションします（デモ用）
+                </div>
               </div>
               <div className="button-group">
                 <button type="submit" className="primary">
