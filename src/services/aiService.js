@@ -146,18 +146,35 @@ const REQUIREMENTS_GENERATION_TEMPLATE = `
 const getSettings = async () => {
   try {
     if (window.electronAPI && typeof window.electronAPI.getSettings === 'function') {
-      return await window.electronAPI.getSettings();
-    } else {
-      // ブラウザ環境
-      const savedSettings = localStorage.getItem('aiBoSettings');
-      if (savedSettings) {
-        return JSON.parse(savedSettings);
+      const settings = await window.electronAPI.getSettings();
+      if (settings) {
+        return settings;
       }
-      throw new Error('設定が見つかりません');
     }
+    
+    // ブラウザ環境または設定が見つからない場合
+    const savedSettings = localStorage.getItem('aiBoSettings');
+    if (savedSettings) {
+      return JSON.parse(savedSettings);
+    }
+    
+    // デフォルト設定を返す
+    logger.warn('設定が見つかりません。デフォルト設定を使用します。');
+    return {
+      aiProvider: 'openai',
+      model: 'gpt-4o',
+      temperature: 0.7,
+      maxTokens: 4000
+    };
   } catch (error) {
     logger.error('設定の取得に失敗しました:', error);
-    throw error;
+    // エラーの場合もデフォルト設定を返す
+    return {
+      aiProvider: 'openai',
+      model: 'gpt-4o',
+      temperature: 0.7,
+      maxTokens: 4000
+    };
   }
 };
 
@@ -360,11 +377,13 @@ const callLocalModel = async (prompt, params = {}) => {
 // AI処理の実行 - プロバイダーに応じたAPIを呼び出す
 const processWithAI = async (prompt, options = {}) => {
   try {
-    const settings = await getSettings();
-    const provider = options.provider || settings.aiProvider;
-    const model = options.model;
-    const temperature = options.temperature || settings.temperature;
-    const maxTokens = options.maxTokens || settings.maxTokens;
+    let settings = await getSettings();
+    
+    // オプションから設定を優先
+    const provider = options.provider || settings.aiProvider || 'openai';
+    const model = options.model || settings.model || 'gpt-4o';
+    const temperature = options.temperature || settings.temperature || 0.7;
+    const maxTokens = options.maxTokens || settings.maxTokens || 4000;
     
     logger.info('AI処理実行', { provider, promptLength: prompt.length });
     
@@ -500,9 +519,10 @@ const processWithSummarizerAI = async (expertResults, context = {}) => {
     
     // AIプロバイダーに送信 (まとめAIは主要なプロバイダーを使用)
     const settings = await getSettings();
+    
     const response = await processWithAI(prompt, {
-      provider: settings.aiProvider,
-      model: settings.model,
+      provider: settings.aiProvider || 'openai',
+      model: settings.model || 'gpt-4o',
       temperature: 0.3, // まとめAIも一貫性を重視
       maxTokens: 4000 // 十分な回答スペース
     });
@@ -548,8 +568,8 @@ const processUserAnswers = async (questions, previousRequirements = [], context 
     // AIプロバイダーに送信
     const settings = await getSettings();
     const response = await processWithAI(prompt, {
-      provider: settings.aiProvider,
-      model: settings.model,
+      provider: settings.aiProvider || 'openai',
+      model: settings.model || 'gpt-4o',
       temperature: 0.2, // 要件生成も一貫性を重視
       maxTokens: 4000  
     });
