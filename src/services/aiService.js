@@ -262,7 +262,7 @@ const callAzure = async (prompt, deploymentName, temperature, maxTokens) => {
     // APIバージョンを設定から取得、デフォルトは2023-05-15
     const apiVersion = settings.azureApiVersion || '2023-05-15';
     
-    // モデルタイプを設定から取得（オプション）
+    // モデルタイプを設定から取得
     const modelType = settings.azureModelType || 'gpt-4';
     
     if (!endpoint || !deployment) {
@@ -273,10 +273,20 @@ const callAzure = async (prompt, deploymentName, temperature, maxTokens) => {
       endpoint, 
       deployment, 
       apiVersion,
-      modelType,
-      temperature, 
-      maxTokens 
+      modelType
     });
+    
+    // 基本リクエスト本文
+    let requestBody = {
+      messages: [{ role: 'user', content: prompt }]
+    };
+    
+    // o3-miniモデルは多くの標準パラメータをサポートしていない
+    if (modelType !== 'o3-mini' && deployment !== 'o3-mini') {
+      // 標準モデルの場合、一般的なパラメータを追加
+      requestBody.temperature = temperature || settings.temperature || 0.7;
+      requestBody.max_tokens = maxTokens || settings.maxTokens || 4000;
+    }
     
     const response = await fetch(`${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${apiVersion}`, {
       method: 'POST',
@@ -284,11 +294,7 @@ const callAzure = async (prompt, deploymentName, temperature, maxTokens) => {
         'Content-Type': 'application/json',
         'api-key': apiKey
       },
-      body: JSON.stringify({
-        messages: [{ role: 'user', content: prompt }],
-        temperature: temperature || settings.temperature || 0.7,
-        max_tokens: maxTokens || settings.maxTokens || 4000
-      })
+      body: JSON.stringify(requestBody)
     });
     
     if (!response.ok) {
@@ -406,7 +412,7 @@ const processWithAI = async (prompt, options = {}) => {
       case 'anthropic':
         return await callAnthropic(prompt, model, temperature, maxTokens);
       case 'azure':
-        return await callAzure(prompt, model, temperature, maxTokens);
+        return await callAzure(prompt, settings.azureDeploymentName, temperature, maxTokens);
       case 'google':
         return await callGoogleVertexAI(prompt, model, temperature, maxTokens);
       case 'openrouter':
