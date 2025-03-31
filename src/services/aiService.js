@@ -259,13 +259,26 @@ const callAzure = async (prompt, deploymentName, temperature, maxTokens) => {
     const endpoint = settings.azureEndpoint;
     const deployment = deploymentName || settings.azureDeploymentName;
     
+    // APIバージョンを設定から取得、デフォルトは2023-05-15
+    const apiVersion = settings.azureApiVersion || '2023-05-15';
+    
+    // モデルタイプを設定から取得（オプション）
+    const modelType = settings.azureModelType || 'gpt-4';
+    
     if (!endpoint || !deployment) {
       throw new Error('Azure設定が不完全です');
     }
     
-    logger.debug('Azure OpenAI API呼び出し', { deployment, temperature, maxTokens });
+    logger.debug('Azure OpenAI API呼び出し', { 
+      endpoint, 
+      deployment, 
+      apiVersion,
+      modelType,
+      temperature, 
+      maxTokens 
+    });
     
-    const response = await fetch(`${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=2023-05-15`, {
+    const response = await fetch(`${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${apiVersion}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -273,8 +286,8 @@ const callAzure = async (prompt, deploymentName, temperature, maxTokens) => {
       },
       body: JSON.stringify({
         messages: [{ role: 'user', content: prompt }],
-        temperature: temperature || settings.temperature,
-        max_tokens: maxTokens || settings.maxTokens
+        temperature: temperature || settings.temperature || 0.7,
+        max_tokens: maxTokens || settings.maxTokens || 4000
       })
     });
     
